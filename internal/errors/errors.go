@@ -4,7 +4,6 @@ import "net/http"
 
 const (
 	ErrCodeNotFound     = "NOT_FOUND"
-	ErrCodeTimeout      = "TIME_OUT"
 	ErrCodeValidation   = "VALIDATION_ERROR"
 	ErrCodeUnauthorized = "UNAUTHORIZED"
 	ErrCodeForbidden    = "FORBIDDEN"
@@ -22,8 +21,6 @@ func (a *AppError) MapToHttpCode() int {
 	case ErrCodeForbidden:
 		return http.StatusForbidden
 	case ErrCodeInternal:
-		return http.StatusInternalServerError
-	case ErrCodeTimeout:
 		return http.StatusInternalServerError
 	default:
 		return http.StatusInternalServerError
