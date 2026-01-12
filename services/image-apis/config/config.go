@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/sethvargo/go-envconfig"
 )
@@ -60,7 +61,9 @@ type In struct {
 func LoadCfg(ctx context.Context) (Config, error) {
 	var input In
 
-	if err := envconfig.Process(ctx, &input); err != nil {
+	c, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	if err := envconfig.Process(c, &input); err != nil {
 		return Config{}, err
 	}
 

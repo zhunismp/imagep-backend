@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
-	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/panjf2000/ants"
-	"github.com/redis/go-redis/v9"
-	"github.com/zhunismp/imagep-backend/internal/kafka"
+	"github.com/panjf2000/ants/v2"
 	"github.com/zhunismp/imagep-backend/services/image-apis/config"
+	"github.com/zhunismp/imagep-backend/services/image-apis/pubsub"
 	"github.com/zhunismp/imagep-backend/services/image-apis/service"
+	"github.com/zhunismp/imagep-backend/services/image-apis/store/blob"
+	"github.com/zhunismp/imagep-backend/services/image-apis/store/cache"
 	"github.com/zhunismp/imagep-backend/services/image-apis/transport"
 )
 
@@ -24,41 +23,37 @@ var (
 )
 
 func main() {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	cfg, err := config.LoadCfg(ctx)
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		slog.Error("Failed to read config", "error", err)
 	}
 
 	if err := initialWorkerPool(); err != nil {
-		log.Fatalf("Failed to initialize worker pool: %v", err)
+		slog.Error("Failed to initialize worker pool", "error", err)
 	}
-	shutdown = append(shutdown, releaseWorkerPool)
 
-	redis := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddress,
-		Password: cfg.RedisPassword,
-		DB:       cfg.RedisDB,
-	})
-	shutdown = append(shutdown, func(ctx context.Context) error { return redis.Close() })
-
-	rctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := redis.Ping(rctx).Err(); err != nil {
-		gracefulShutdown()
+	redis, err := cache.NewRedisCache(cfg.CacheCfg)
+	if err != nil {
+		slog.Error("Failed to initialized redis cache")
 		return
 	}
 
-	kafka, err := kafka.NewKafkaProducer(cfg.KafkaAddress, "process-image")
+	kafka, err := pubsub.NewProducer(cfg)
 	if err != nil {
 		slog.Error("Failed to initialize kafka", "error", err)
-		gracefulShutdown()
 		return
 	}
-	shutdown = append(shutdown, kafka.Close)
 
-	fps := service.NewFileProcessorService(kafka, redis, pool, cfg.PollingInterval)
+	blobStorage, err := blob.NewGoogleCloudStorage("process-image")
+	if err != nil {
+		slog.Error("Failed to connect to blob storage", "error", err)
+		return
+	}
+
+	fps := service.NewFileProcessorService(kafka, redis, blobStorage, pool, cfg.PollingInterval, "process-image")
 	ph := transport.NewProcessHandler(fps, cfg.FrontendHost)
 
 	httpServer := transport.NewHttpServer(cfg)
@@ -67,47 +62,26 @@ func main() {
 	shutdown = append(shutdown, httpServer.Shutdown)
 
 	// Gracefully shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	_ = <-quit
-	gracefulShutdown()
-}
+	<-ctx.Done()
 
-func gracefulShutdown() {
-	var once sync.Once
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	once.Do(func() {
-		var wg sync.WaitGroup
-		errCh := make(chan error, len(shutdown))
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown http server", "error", err)
+	}
 
-		// logging shutdown err
-		done := make(chan struct{})
-		go func() {
-			for err := range errCh {
-				if err != nil {
-					slog.Error("Failed to shutdown", "error", err)
-				}
-			}
+	pool.Release()
 
-			close(done)
-		}()
+	kafka.Shutdown()
 
-		for i := len(shutdown) - 1; i >= 0; i-- {
-			idx := i
-			wg.Go(func() {
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
+	if err := blobStorage.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown blob storage", "error", err)
+	}
 
-				errCh <- shutdown[idx](shutdownCtx)
-			})
-		}
-
-		wg.Wait()
-		close(errCh)
-		<-done
-
-		slog.Info("Shutdown completed")
-	})
+	if err := redis.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown cache", "error", err)
+	}
 }
 
 func initialWorkerPool() error {
@@ -145,10 +119,4 @@ func initialWorkerPool() error {
 	})
 
 	return initErr
-}
-
-// Release are just fast, no need timeout handle logic here
-func releaseWorkerPool(ctx context.Context) error {
-	pool.Release()
-	return nil
 }

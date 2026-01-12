@@ -2,107 +2,126 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"log/slog"
 	"mime/multipart"
+	"path/filepath"
 	"sync"
-	"time"
 
-	"github.com/panjf2000/ants"
-	"github.com/redis/go-redis/v9"
-	apperrors "github.com/zhunismp/imagep-backend/internal/errors"
-	"github.com/zhunismp/imagep-backend/internal/kafka"
-	"github.com/zhunismp/imagep-backend/internal/models"
+	"github.com/panjf2000/ants/v2"
+	"github.com/thanhpk/randstr"
+	"github.com/zhunismp/imagep-backend/services/image-apis/pubsub"
+	"github.com/zhunismp/imagep-backend/services/image-apis/store/blob"
+	"github.com/zhunismp/imagep-backend/services/image-apis/store/cache"
 )
 
 type fileProcessorService struct {
-	kc *kafka.KafkaProducer
-	rc *redis.Client
-	wp *ants.Pool
-	pi int
+	processImageProducer pubsub.ProcessImageProducer
+	taskStateCache       cache.TaskStateCache
+	blobStorage          blob.BlobStorage
+	wp                   *ants.Pool
+	pollingInterval      int
 }
 
+// type uploadBlobResult struct {
+// 	fileName string
+// 	path     string
+// 	err      error
+// }
+
 func NewFileProcessorService(
-	kc *kafka.KafkaProducer,
-	rc *redis.Client,
+	processImageProducer pubsub.ProcessImageProducer,
+	taskStateCache cache.TaskStateCache,
+	blobStorage blob.BlobStorage,
 	wp *ants.Pool,
 	pi int,
+	bucketName string,
 ) *fileProcessorService {
 	return &fileProcessorService{
-		kc: kc,
-		rc: rc,
-		wp: wp,
-		pi: pi,
+		processImageProducer: processImageProducer,
+		taskStateCache:       taskStateCache,
+		blobStorage:          blobStorage,
+		wp:                   wp,
+		pollingInterval:      pi,
 	}
 }
 
-func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (string, *apperrors.AppError) {
+func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (string, error) {
+	var wg sync.WaitGroup
+	errCh := make(chan error, len(files))
+	for _, file := range files {
+		wg.Add(1)
+		f.wp.Submit(func() {
+			defer wg.Done()
 
-	// create new redis status block
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
-	data := models.CacheTaskStatus{
-		Status:    models.Pending,
+			uniqueness := randstr.Hex(8)
+			ext := filepath.Ext(file.Filename)
+			path := fmt.Sprintf("%s/%s-%s%s", taskId, file.Filename, uniqueness, ext)
+			reader, _ := file.Open() // TODO: Handle open file error
+
+			errCh <- f.blobStorage.UploadBlob(ctx, path, reader)
+		})
+	}
+
+	go func(ctx context.Context) {
+		wg.Wait()
+		close(errCh)
+	}(ctx)
+
+	// TODO: Handle partial successcase
+	for err := range errCh {
+		slog.Error("Failed to upload file to storage", "error", err)
+	}
+
+	state := cache.TaskState{
+		Status:    cache.Pending,
 		Total:     len(files),
 		Processed: []string{},
 		Failed:    []string{},
 	}
 
-	// TODO: upload image to blob storage
-
-	if err := f.rc.JSONSet(ctx, cacheKey, "$", data).Err(); err != nil {
-		return "", apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-		// TODO: retry
+	if err := f.taskStateCache.SaveTaskState(ctx, taskId, state); err != nil {
+		return "", err
 	}
 
 	return taskId, nil
 }
 
-func (f *fileProcessorService) Process(ctx context.Context, taskId string) *apperrors.AppError {
-
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
-
-	// simulate get file path from blob storage
-	fp := []string{
-		"blob1.jpg",
-		"blob2.jpg",
-		"blob3.jpg",
+func (f *fileProcessorService) Process(ctx context.Context, taskId string) error {
+	state, err := f.taskStateCache.GetTaskState(ctx, taskId)
+	if err != nil {
+		return err
 	}
 
-	// sending kafka message to worker
-	// TODO: partially handle kafka error
-	var wg sync.WaitGroup
-	errors := make([]error, len(fp))
-	for i, filePath := range fp {
-		wg.Add(1)
-		p, idx := filePath, i
+	fp := state.Uploaded
 
-		f.wp.Submit(func() {
-			defer wg.Done()
-
-			timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			defer cancel()
-
-			message := models.ProcessImageMessage{TaskId: taskId, ImagePath: p}
-
-			if err := f.kc.Publish(timeoutCtx, message, taskId); err != nil {
-				errors[idx] = err
-			}
-		})
+	// TODO: Handle partial success
+	for _, filePath := range fp {
+		msg := pubsub.ProcessImageMessage{TaskId: taskId, ImagePath: filePath}
+		_ = f.processImageProducer.Produce(ctx, msg)
 	}
-	wg.Wait()
 
-	if err := f.rc.JSONSet(ctx, cacheKey, "$.status", models.Processing).Err(); err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "failed to update status", err)
+	if err := f.taskStateCache.UpdateTaskStatus(ctx, taskId, cache.Processing); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func (f *fileProcessorService) Download(ctx context.Context, taskId string) (ProcessingResult, *apperrors.AppError) {
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
+type ProcessingResult struct {
+	Status       string   `json:"status"`
+	Total        int      `json:"total"`
+	Completed    int      `json:"completed"`
+	RetryAttempt int      `json:"retry_attempt"`
+	Processed    []string `json:"processed"`
+	Failed       []string `json:"failed"`
 
-	c, err := f.getRedisState(ctx, cacheKey)
+	Next int `json:"next,omitempty"`
+}
+
+func (f *fileProcessorService) Download(ctx context.Context, taskId string) (ProcessingResult, error) {
+
+	c, err := f.taskStateCache.GetTaskState(ctx, taskId)
 	if err != nil {
 		return ProcessingResult{}, err
 	}
@@ -116,32 +135,9 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 		Failed:       c.Failed,
 	}
 
-	if c.Status == models.Processing {
-		result.Next = f.pi
+	if c.Status == cache.Processing {
+		result.Next = f.pollingInterval
 	}
 
 	return result, nil
-}
-
-func (f *fileProcessorService) getRedisState(ctx context.Context, cacheKey string) (models.CacheTaskStatus, *apperrors.AppError) {
-
-	// obtain all file paths from cache
-	res, err := f.rc.JSONGet(ctx, cacheKey, "$").Result()
-	if errors.Is(err, redis.Nil) {
-		return models.CacheTaskStatus{}, apperrors.New(apperrors.ErrCodeNotFound, "task id not found", err)
-	} else if err != nil {
-		return models.CacheTaskStatus{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-		// TODO: retry and fallback to get file paths directly from blob
-	}
-
-	// marshalling
-	var c []models.CacheTaskStatus
-	if err := json.Unmarshal([]byte(res), &c); err != nil {
-		return models.CacheTaskStatus{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if len(c) == 0 {
-		return models.CacheTaskStatus{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-
-	return c[0], nil
 }
