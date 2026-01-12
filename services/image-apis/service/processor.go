@@ -46,9 +46,15 @@ func NewFileProcessorService(
 	}
 }
 
+type uploadFileResult struct {
+	path string
+	err  error
+}
+
 func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (string, error) {
 	var wg sync.WaitGroup
-	errCh := make(chan error, len(files))
+
+	resultCh := make(chan uploadFileResult, len(files))
 	for _, file := range files {
 		wg.Add(1)
 		f.wp.Submit(func() {
@@ -59,23 +65,30 @@ func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files 
 			path := fmt.Sprintf("%s/%s-%s%s", taskId, file.Filename, uniqueness, ext)
 			reader, _ := file.Open() // TODO: Handle open file error
 
-			errCh <- f.blobStorage.UploadBlob(ctx, path, reader)
+			err := f.blobStorage.UploadBlob(ctx, path, reader)
+			resultCh <- uploadFileResult{path: path, err: err}
 		})
 	}
 
 	go func(ctx context.Context) {
 		wg.Wait()
-		close(errCh)
+		close(resultCh)
 	}(ctx)
 
-	// TODO: Handle partial successcase
-	for err := range errCh {
-		slog.Error("Failed to upload file to storage", "error", err)
+	uploaded := make([]string, len(files))
+	for result := range resultCh {
+		if err := result.err; err != nil {
+			slog.Error("Failed to upload file to storage", "error", err)
+			continue
+		}
+
+		uploaded = append(uploaded, result.path)
 	}
 
 	state := cache.TaskState{
 		Status:    cache.Pending,
 		Total:     len(files),
+		Uploaded:  uploaded,
 		Processed: []string{},
 		Failed:    []string{},
 	}
@@ -93,10 +106,8 @@ func (f *fileProcessorService) Process(ctx context.Context, taskId string) error
 		return err
 	}
 
-	fp := state.Uploaded
-
 	// TODO: Handle partial success
-	for _, filePath := range fp {
+	for _, filePath := range state.Uploaded {
 		msg := pubsub.ProcessImageMessage{TaskId: taskId, ImagePath: filePath}
 		_ = f.processImageProducer.Produce(ctx, msg)
 	}

@@ -7,18 +7,18 @@ import (
 	"image"
 	"time"
 
-	"cloud.google.com/go/storage"
-	"github.com/redis/go-redis/v9"
 	"github.com/zhunismp/imagep-backend/internal/models"
+	"github.com/zhunismp/imagep-backend/services/image-compressor/store/blob"
+	"github.com/zhunismp/imagep-backend/services/image-compressor/store/cache"
 )
 
 type CompressorService struct {
-	rc     *redis.Client
-	bucket *storage.BucketHandle
+	TaskStateCache cache.TaskStateCache
+	blobStorage    blob.BlobStorage
 }
 
-func NewCompressorService(rc *redis.Client, bucket *storage.BucketHandle) *CompressorService {
-	return &CompressorService{rc: rc, bucket: bucket}
+func NewCompressorService(rc cache.TaskStateCache, blob blob.BlobStorage) *CompressorService {
+	return &CompressorService{TaskStateCache: rc, blobStorage: blob}
 }
 
 func (c *CompressorService) Compress(ctx context.Context, taskId, filePath string) error {
@@ -40,7 +40,7 @@ func (c *CompressorService) Compress(ctx context.Context, taskId, filePath strin
 	}
 
 	if err := c.uploadCompressed(ctx, taskId, filePath, data, contentType); err != nil {
-        return err
+		return err
 	}
 
 	return c.updateRedisOnSuccess(ctx, taskId, filePath)
