@@ -75,9 +75,9 @@ func (p *kafkaProducer) Shutdown() {
 }
 
 func (p *kafkaProducer) startDrain() {
-	defer slog.Info("Producer event loop was closed")
-
 	go func() {
+		defer slog.Info("Producer event loop was closed")
+
 		for e := range p.producer.Events() {
 			switch ev := e.(type) {
 			case *kafka.Message:

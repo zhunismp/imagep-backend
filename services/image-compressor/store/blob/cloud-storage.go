@@ -2,6 +2,8 @@ package blob
 
 import (
 	"context"
+	"fmt"
+	"image"
 	"io"
 	"time"
 
@@ -45,11 +47,23 @@ func (b *googleCloudStorage) UploadBlob(ctx context.Context, path string, conten
 	return nil
 }
 
+func (b *googleCloudStorage) DownloadBlob(ctx context.Context, taskId, path string) (image.Image, string, error) {
+	fullPath := fmt.Sprintf("%s/%s", taskId, path)
+	reader, err := b.bucket.Object(fullPath).NewReader(ctx)
+	if err != nil {
+		return nil, "", fmt.Errorf("read error: %w", err)
+	}
+	defer reader.Close()
+
+	img, format, err := image.Decode(reader)
+	return img, format, err
+}
+
 func (b *googleCloudStorage) GetPresignedURL(path string) (string, error) {
 	opts := &storage.SignedURLOptions{
-		Scheme:  storage.SigningSchemeV4,
-		Method:  "GET",
-		Expires: time.Now().Add(15 * time.Minute),
+		Scheme:         storage.SigningSchemeV4,
+		Method:         "GET",
+		Expires:        time.Now().Add(1 * time.Hour),
 	}
 
 	url, err := b.bucket.SignedURL(path, opts)

@@ -8,6 +8,8 @@ type TaskStateCache interface {
 	GetTaskState(ctx context.Context, taskId string) (TaskState, error)
 	SaveTaskState(ctx context.Context, taskId string, taskState TaskState) error
 	UpdateTaskStatus(ctx context.Context, taskId string, status TaskStatus) error
+	PostUpdateProcessCompleted(ctx context.Context, taskId string, filePath string) error
+	PostUpdateProcessFailed(ctx context.Context, taskId string, filePath string) error
 	Shutdown(ctx context.Context) error
 }
 

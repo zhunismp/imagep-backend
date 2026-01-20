@@ -4,7 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"os/signal"
+	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/zhunismp/imagep-backend/services/image-compressor/config"
 	"github.com/zhunismp/imagep-backend/services/image-compressor/pubsub"
@@ -41,9 +43,20 @@ func main() {
 		slog.Error("Failed to start consumer", "error", err)
 		return
 	}
-	consumer.Start(ctx, 50)
+	consumer.Start(ctx, runtime.NumCPU())
 
 	// Gracefully shutdown
 	<-ctx.Done()
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	defer cancel()
 
+	consumer.Shutdown(shutdownCtx)
+
+	if err := blobStorage.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown blob storage")
+	}
+
+	if err := redis.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown redis cache")
+	}
 }

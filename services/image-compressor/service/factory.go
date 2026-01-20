@@ -20,11 +20,11 @@ type Compressor interface {
 }
 
 func getCompressor(format string) (Compressor, error) {
-	if format == ".jpg" || format == ".jpeg" {
+	if format == "jpg" || format == "jpeg" {
 		return &JPEGCompressor{}, nil
 	}
 
-	if format == ".png" {
+	if format == "png" {
 		return &PNGCompressor{}, nil
 	}
 
@@ -38,7 +38,7 @@ func (c *JPEGCompressor) Compress(ctx context.Context, img image.Image) ([]byte,
 
 	go func() {
 		var buf bytes.Buffer
-		err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 75})
+		err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 60})
 		resCh <- result{data: buf.Bytes(), err: err}
 	}()
 

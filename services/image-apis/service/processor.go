@@ -23,12 +23,6 @@ type fileProcessorService struct {
 	pollingInterval      int
 }
 
-// type uploadBlobResult struct {
-// 	fileName string
-// 	path     string
-// 	err      error
-// }
-
 func NewFileProcessorService(
 	processImageProducer pubsub.ProcessImageProducer,
 	taskStateCache cache.TaskStateCache,
@@ -54,6 +48,7 @@ type uploadFileResult struct {
 func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (string, error) {
 	var wg sync.WaitGroup
 
+	slog.Info("Start processing uploaded", "num_files", len(files))
 	resultCh := make(chan uploadFileResult, len(files))
 	for _, file := range files {
 		wg.Add(1)
@@ -62,11 +57,12 @@ func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files 
 
 			uniqueness := randstr.Hex(8)
 			ext := filepath.Ext(file.Filename)
-			path := fmt.Sprintf("%s/%s-%s%s", taskId, file.Filename, uniqueness, ext)
+			fileName := fmt.Sprintf("%s-%s%s", file.Filename, uniqueness, ext)
+			blobPath := fmt.Sprintf("%s/%s", taskId, fileName)
 			reader, _ := file.Open() // TODO: Handle open file error
 
-			err := f.blobStorage.UploadBlob(ctx, path, reader)
-			resultCh <- uploadFileResult{path: path, err: err}
+			err := f.blobStorage.UploadBlob(ctx, blobPath, reader)
+			resultCh <- uploadFileResult{path: fileName, err: err}
 		})
 	}
 
@@ -75,7 +71,7 @@ func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files 
 		close(resultCh)
 	}(ctx)
 
-	uploaded := make([]string, len(files))
+	uploaded := make([]string, 0, len(files))
 	for result := range resultCh {
 		if err := result.err; err != nil {
 			slog.Error("Failed to upload file to storage", "error", err)
@@ -87,7 +83,7 @@ func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files 
 
 	state := cache.TaskState{
 		Status:    cache.Pending,
-		Total:     len(files),
+		Total:     len(uploaded),
 		Uploaded:  uploaded,
 		Processed: []string{},
 		Failed:    []string{},

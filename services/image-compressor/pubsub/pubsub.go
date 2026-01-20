@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/zhunismp/imagep-backend/internal/models"
 	"github.com/zhunismp/imagep-backend/services/image-compressor/config"
 )
 
@@ -22,7 +21,10 @@ type ConsumerWorker struct {
 	kc  *kafka.Consumer
 	cfg config.Config
 	svc imageCompressorSvc
-	wg  sync.WaitGroup
+
+	wCtx    context.Context
+	wCancel context.CancelFunc
+	wg      sync.WaitGroup
 
 	taskCh chan *kafka.Message
 	ackCh  chan ack
@@ -46,24 +48,27 @@ func NewConsumerWorker(cfg config.Config, svc imageCompressorSvc) (*ConsumerWork
 	tasks := make(chan *kafka.Message, 1000)
 	acks := make(chan ack, 1000)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &ConsumerWorker{
-		kc:     consumer,
-		svc:    svc,
-		cfg:    cfg,
-		taskCh: tasks,
-		ackCh:  acks,
+		kc:      consumer,
+		svc:     svc,
+		cfg:     cfg,
+		wCtx:    ctx,
+		wCancel: cancel,
+		taskCh:  tasks,
+		ackCh:   acks,
 	}, nil
 }
 
 func (c *ConsumerWorker) Start(ctx context.Context, parallelWorkers int) error {
-	c.startWoker(ctx, parallelWorkers)
-	c.startBackgroundCommit(ctx)
+	c.startWoker(c.wCtx, parallelWorkers)
+	c.startBackgroundCommit(c.wCtx)
 
 	for {
 		select {
 		case <-ctx.Done():
-			// After context was done, call Shutdown() function to free resources
-			return nil
+			return ctx.Err()
 
 		default:
 			// Poll for events (100ms timeout)
@@ -77,8 +82,8 @@ func (c *ConsumerWorker) Start(ctx context.Context, parallelWorkers int) error {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case c.taskCh <- e:
-					// Message queued for processing
+				default:
+					c.taskCh <- e
 				}
 
 			case kafka.Error:
@@ -111,23 +116,25 @@ func (c *ConsumerWorker) Start(ctx context.Context, parallelWorkers int) error {
 func (c *ConsumerWorker) Shutdown(ctx context.Context) error {
 	slog.Info("Shutting down consumer")
 
-	// Stop accepting new work
+	// stop accepting new work
 	close(c.taskCh)
 
-	// Stop Ack message
+	done := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(done)
+	}()
 
-
-
-	// Wait for workers to finish
-	c.wg.Wait()
-
-	// // Final commit
-	// _, err := c.kc.Commit()
-	// if err != nil {
-	// 	slog.Error("Final commit failed", "error", err)
-	// }
-
-	return c.kc.Close()
+	// wait for all workers to finish or timeout
+	select {
+	case <-ctx.Done():
+		slog.Error("Timeout was exceeded try to force shutdown")
+		c.wCancel()
+		return ctx.Err()
+	case <-done:
+		close(c.ackCh)
+		return c.kc.Close()
+	}
 }
 
 func (c *ConsumerWorker) startWoker(ctx context.Context, parallelWorkers int) {
@@ -148,9 +155,9 @@ func (c *ConsumerWorker) startWoker(ctx context.Context, parallelWorkers int) {
 
 					if err := c.processMessage(msg); err != nil {
 						slog.Error("Failed to process message", "error", err)
+						continue
 						// retry, DLQ, or skip
 						// Don't send ack on failure for at-least-once delivery
-						return
 					}
 
 					// Signal successful processing
@@ -166,17 +173,34 @@ func (c *ConsumerWorker) startWoker(ctx context.Context, parallelWorkers int) {
 }
 
 func (c *ConsumerWorker) startBackgroundCommit(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
 	pending := make(map[kafka.TopicPartition]kafka.Offset)
 
+	commit := func() {
+		if len(pending) > 0 {
+			offsets, err := c.kc.Commit()
+			if err != nil {
+				slog.Error("Failed to commit to kafka", "error", err)
+			} else {
+				slog.Info("Successfully commited", "partitions", len(offsets))
+			}
+			pending = make(map[kafka.TopicPartition]kafka.Offset)
+		}
+	}
+
 	go func(ctx context.Context) {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		defer commit()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case ack := <-c.ackCh:
+			case ack, ok := <-c.ackCh:
+				if !ok {
+					return
+				}
+
 				// Store offset for successful message (next offset to read)
 				nextOffset := ack.off + 1
 				tp := kafka.TopicPartition{
@@ -194,23 +218,14 @@ func (c *ConsumerWorker) startBackgroundCommit(ctx context.Context) {
 				}
 
 			case <-ticker.C:
-				// Periodically commit stored offsets
-				if len(pending) > 0 {
-					offsets, err := c.kc.Commit()
-					if err != nil {
-						slog.Error("Failed to commit to kafka", "error", err)
-					} else {
-						slog.Info("Successfully commited", "partitions", len(offsets))
-					}
-					pending = make(map[kafka.TopicPartition]kafka.Offset)
-				}
+				commit()
 			}
 		}
 	}(ctx)
 }
 
 func (c *ConsumerWorker) processMessage(msg *kafka.Message) error {
-	var parsedMsg models.ProcessImageMessage
+	var parsedMsg ProcessImageMessage
 	if err := json.Unmarshal(msg.Value, &parsedMsg); err != nil {
 		return fmt.Errorf("Failed to unmarshall message: %v", err)
 	}

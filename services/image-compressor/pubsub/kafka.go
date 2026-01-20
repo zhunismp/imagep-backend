@@ -10,6 +10,11 @@ import (
 	"github.com/zhunismp/imagep-backend/services/image-compressor/config"
 )
 
+type ProcessImageMessage struct {
+	TaskId    string
+	ImagePath string
+}
+
 func NewKafkaConsumer(cfg config.Config) (*kafka.Consumer, error) {
 	kCfg := &kafka.ConfigMap{
 		"bootstrap.servers":             cfg.KafkaAddress,

@@ -36,7 +36,7 @@ func (r *redisCache) GetTaskState(ctx context.Context, taskId string) (TaskState
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
+	cacheKey := generateCacheKey(taskId)
 	res, err := r.redisClient.JSONGet(ctx, cacheKey, "$").Result()
 	if errors.Is(err, redis.Nil) {
 		return TaskState{}, apperrors.New(apperrors.ErrCodeNotFound, "task id not found", err)
@@ -59,7 +59,7 @@ func (r *redisCache) SaveTaskState(ctx context.Context, taskId string, taskState
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
+	cacheKey := generateCacheKey(taskId)
 	if err := r.redisClient.JSONSet(ctx, cacheKey, "$", taskState).Err(); err != nil {
 		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 	}
@@ -71,7 +71,8 @@ func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 
-	cacheKey := fmt.Sprintf("tasks:%s", taskId)
+	cacheKey := generateCacheKey(taskId)
+
 	if err := r.redisClient.JSONSet(ctx, cacheKey, "$.status", status).Err(); err != nil {
 		return apperrors.New(apperrors.ErrCodeInternal, "failed to update status", err)
 	}
@@ -79,6 +80,72 @@ func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status
 	return nil
 }
 
+func (r *redisCache) PostUpdateProcessCompleted(ctx context.Context, taskId string, filePath string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	cacheKey := generateCacheKey(taskId)
+
+	taskState, err := r.GetTaskState(ctx, taskId)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	pipe := r.redisClient.Pipeline()
+	pipe.Do(ctx, "JSON.ARRAPPEND", cacheKey, "$.processed", toJsonString(filePath))
+	pipe.Do(ctx, "JSON.NUMINCRBY", cacheKey, "$.completed", 1)
+
+	if taskState.Completed+1 == taskState.Total {
+		if len(taskState.Failed) == 0 {
+			pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Completed)))
+		} else {
+			pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Failed)))
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "failed to update completed file", err)
+	}
+
+	return nil
+}
+
+func (r *redisCache) PostUpdateProcessFailed(ctx context.Context, taskId string, filePath string) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	cacheKey := generateCacheKey(taskId)
+
+	taskState, err := r.GetTaskState(ctx, taskId)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	pipe := r.redisClient.Pipeline()
+	pipe.Do(ctx, "JSON.ARRAPPEND", cacheKey, "$.failed", filePath)
+	pipe.Do(ctx, "JSON.NUMINCRBY", cacheKey, "$.completed", 1)
+
+	if taskState.Completed+1 == taskState.Total {
+		pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Failed)))
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "failed to update completed file", err)
+	}
+
+	return nil
+}
+
 func (r *redisCache) Shutdown(ctx context.Context) error {
 	return r.redisClient.Close()
+}
+
+func generateCacheKey(taskId string) string {
+	return fmt.Sprintf("tasks:%s", taskId)
+}
+
+func toJsonString(s string) string {
+	return fmt.Sprintf(`"%s"`, s)
 }
