@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/panjf2000/ants/v2"
@@ -57,8 +58,11 @@ func (f *fileProcessorService) Upload(ctx context.Context, taskId string, files 
 
 			uniqueness := randstr.Hex(8)
 			ext := filepath.Ext(file.Filename)
-			fileName := fmt.Sprintf("%s-%s%s", file.Filename, uniqueness, ext)
+			name, _ := strings.CutSuffix(file.Filename, ext)
+
+			fileName := fmt.Sprintf("%s-%s%s", name, uniqueness, ext)
 			blobPath := fmt.Sprintf("%s/%s", taskId, fileName)
+
 			reader, _ := file.Open() // TODO: Handle open file error
 
 			err := f.blobStorage.UploadBlob(ctx, blobPath, reader)
@@ -102,7 +106,6 @@ func (f *fileProcessorService) Process(ctx context.Context, taskId string) error
 		return err
 	}
 
-	// TODO: Handle partial success
 	for _, filePath := range state.Uploaded {
 		msg := pubsub.ProcessImageMessage{TaskId: taskId, ImagePath: filePath}
 		_ = f.processImageProducer.Produce(ctx, msg)
