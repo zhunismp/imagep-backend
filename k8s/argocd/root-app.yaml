@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/zhunismp/imagep-backend.git
     targetRevision: master
-    path: k8a/argocd/applications
+    path: k8s/argocd/applications
     directory:
       recurse: true
 
