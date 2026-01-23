@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: image-apis
+  name: external-secrets-controller
   namespace: argocd
 spec:
   project: default
@@ -9,16 +9,13 @@ spec:
   source:
     repoURL: https://github.com/zhunismp/imagep-backend.git
     targetRevision: master
-    path: k8s/apps/image-apis
+    path: k8s/infrastructure/redis
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: imageapis
+    namespace: redis
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-    

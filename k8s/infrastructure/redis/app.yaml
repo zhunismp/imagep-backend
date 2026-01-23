@@ -1,19 +1,25 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: image-apis
+  name: redis
   namespace: argocd
 spec:
   project: default
 
   source:
-    repoURL: https://github.com/zhunismp/imagep-backend.git
-    targetRevision: master
-    path: k8s/apps/image-apis
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: redis
+    targetRevision: 19.5.0
+    helm:
+      values: |
+        architecture: standalone
+        auth:
+          enabled: true
+          password: "secret"
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: imageapis
+    namespace: redis
 
   syncPolicy:
     automated:
@@ -21,4 +27,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-    
