@@ -10,6 +10,17 @@ resource "google_container_cluster" "this" {
   }
 }
 
+resource "google_service_account" "gke_nodes" {
+    account_id = "gke-nodes"
+    display_name = "gke-nodes"
+}
+
+resource "google_project_iam_member" "node_default_role" {
+    project = var.project_id
+    role = "roles/container.defaultNodeServiceAccount"
+    member = "serviceAccount:${google_service_account.gke_nodes.email}"
+}
+
 resource "google_container_node_pool" "default" {
   name       = "default-pool"
   cluster    = google_container_cluster.this.name
@@ -23,5 +34,6 @@ resource "google_container_node_pool" "default" {
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
+    service_account = google_service_account.gke_nodes.email
   }
 }
