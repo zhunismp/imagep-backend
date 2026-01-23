@@ -5,9 +5,11 @@ variable "zone" {}
 variable "name" {}
 
 variable "node_count" {
-  default = 2
+  default = 3
 }
 
 variable "machine_type" {
   default = "e2-medium"
 }
+
+variable "gsa" {}

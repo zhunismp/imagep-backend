@@ -1,9 +1,5 @@
-variable "namespace" {}
+# variable "gsa_email" {}
 
-variable "ksa_name" {}
+# variable "gsa_name" {}
 
-variable "gsa_email" {}
-
-variable "gsa_name" {}
-
-variable "workload_pool" {}
+# variable "workload_pool" {}
