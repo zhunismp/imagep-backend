@@ -7,9 +7,15 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/zhunismp/imagep-backend.git
-    targetRevision: master
-    path: k8s/infrastructure/redis
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: redis
+    targetRevision: 24.1.2
+    helm:
+      values: |
+        architecture: standalone
+        auth:
+          enabled: true
+          password: "secret"
 
   destination:
     server: https://kubernetes.default.svc
@@ -19,3 +25,5 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
