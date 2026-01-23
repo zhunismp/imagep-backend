@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: infrastructure
+  name: image-apis
   namespace: argocd
 spec:
   project: default
@@ -9,17 +9,13 @@ spec:
   source:
     repoURL: https://github.com/zhunismp/imagep-backend.git
     targetRevision: master
-    path: k8s/infrastructure
-    directory:
-      recurse: true
+    path: apps/image-apis
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: imageapis
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
