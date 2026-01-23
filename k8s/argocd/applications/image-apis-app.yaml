@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/zhunismp/imagep-backend.git
     targetRevision: master
-    path: apps/image-apis
+    path: k8s/apps/image-apis
 
   destination:
     server: https://kubernetes.default.svc
