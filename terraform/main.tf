@@ -5,10 +5,15 @@ locals {
 module "gsa" {
   source       = "./modules/gsa"
   project_id   = var.project_id
-  account_id   = "${local.project_name}-gsa"
-  display_name = "imagep service account"
 
-  roles = [
+  image_apis_account_id = "${local.project_name}-image-apis-gsa"
+  image_apis_roles = [
+    "roles/storage.objectViewer",
+    "roles/secretmanager.secretAccessor"
+  ]
+
+  image_compressor_account_id = "${local.project_name}-image-processor-gsa"
+  image_compressor_roles = [
     "roles/storage.objectViewer",
     "roles/secretmanager.secretAccessor"
   ]
@@ -19,7 +24,6 @@ module "gke" {
   project_id = var.project_id
   zone       = var.zone
   name       = "${local.project_name}-gke"
-  gsa        = module.gsa.email
 }
 
 # module "workload_identity" {
