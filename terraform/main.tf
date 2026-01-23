@@ -26,12 +26,3 @@ module "gke" {
   name       = "${local.project_name}-gke"
 }
 
-# module "workload_identity" {
-#   source = "./modules/workload-identity"
-
-#   namespace      = "${local.project_name}"
-#   ksa_name       = "${local.project_name}-sa"
-#   gsa_email      = module.gsa.email
-#   gsa_name       = module.gsa.name
-#   workload_pool  = module.gke.workload_pool
-# }
