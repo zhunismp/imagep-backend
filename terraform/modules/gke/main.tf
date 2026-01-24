@@ -8,6 +8,8 @@ resource "google_container_cluster" "this" {
   workload_identity_config {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
+
+  deletion_protection = false
 }
 
 resource "google_service_account" "gke_nodes" {
