@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kafka-cluster
+  name: root
   namespace: argocd
 spec:
   project: default
@@ -9,16 +9,15 @@ spec:
   source:
     repoURL: https://github.com/zhunismp/imagep-backend.git
     targetRevision: master
-    path: k8s/bootstrap/kafka
+    path: k8s/argocd/applications
+    directory:
+      recurse: true
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: kafka
+    namespace: argocd
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-    

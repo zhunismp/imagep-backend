@@ -1,0 +1,9 @@
+installCRDs: true
+
+serviceAccount:
+  create: true
+  name: sa
+  annotations:
+    iam.gke.io/gcp-service-account: eso-gsa@project-8fadb4d4-cc54-44ca-80c.iam.gserviceaccount.com
+
+namespace: eso

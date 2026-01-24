@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/zhunismp/imagep-backend.git
+        revision: master
+        directories:
+          - path: k8s/cluster/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+      annotations:
+        argocd.argoproj.io/sync-wave: "1"
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/zhunismp/imagep-backend.git
+        targetRevision: master
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

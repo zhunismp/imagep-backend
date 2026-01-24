@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: bootstrap
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: kafka-operator
+            namespace: kafka
+            repoURL: https://strimzi.io/charts
+            chart: strimzi-kafka-operator
+            version: 0.50.0
+          - name: external-secrets-operator
+            namespace: eso
+            repoURL: https://charts.external-secrets.io
+            chart: external-secrets
+            version: 0.10.5
+  template:
+    metadata:
+      name: bootstrap-{{name}}
+      annotations:
+        argocd.argoproj.io/sync-wave: "0"
+    spec:
+      project: bootstrap
+      source:
+        repoURL: '{{repoURL}}'
+        chart: '{{chart}}'
+        targetRevision: '{{version}}'
+        helm:
+          valueFiles:
+            - k8s/bootstrap/{{name}}/values.yaml
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
