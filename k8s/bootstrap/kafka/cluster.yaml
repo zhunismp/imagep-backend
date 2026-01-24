@@ -6,31 +6,12 @@ metadata:
 spec:
   kafka:
     version: 4.1.0
-    replicas: 3
-
+    
     listeners:
       - name: internal
         port: 9092
         type: internal
         tls: false
-
-    storage:
-      type: persistent-claim
-      size: 20Gi
-      class: standard-rwo
-
-    resources:
-      requests:
-        cpu: "500m"
-        memory: 1500Mi
-      limits:
-        memory: 2Gi
-    
-  zookeeper:
-    replicas: 1
-    storage:
-      type: persistent-claim
-      size: 5Gi
 
     config:
       listeners.security.protocol.map: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
