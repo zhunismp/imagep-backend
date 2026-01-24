@@ -8,6 +8,8 @@ spec:
 
   sourceRepos:
     - https://github.com/zhunismp/imagep-backend.git
+    - https://charts.external-secrets.io
+    - https://strimzi.io/charts
 
   destinations:
     - namespace: '*'
