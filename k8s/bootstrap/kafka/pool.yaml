@@ -13,9 +13,10 @@ spec:
   storage:
     type: persistent-claim
     size: 20Gi
+    class: kafka-pd-standard
   resources:
     requests:
-      cpu: "1"
+      cpu: "250m"
       memory: 2Gi
     limits:
-      memory: 6Gi
+      memory: 2Gi
