@@ -30,7 +30,7 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: Kafka
 metadata:
-  name: imagep-kafka
+  name: imagep
   namespace: kafka
   annotations:
     strimzi.io/node-pools: enabled
