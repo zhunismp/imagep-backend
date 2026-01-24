@@ -1,0 +1,36 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: imagep-kafka
+  namespace: kafka
+spec:
+  kafka:
+    version: 3.7.0
+    replicas: 3
+    kraft:
+      enabled: true
+
+    listeners:
+      - name: internal
+        port: 9092
+        type: internal
+        tls: false
+
+    storage:
+      type: persistent-claim
+      size: 100Gi
+      class: standard-rwo
+
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        memory: 6Gi
+
+    config:
+      listeners.security.protocol.map: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
