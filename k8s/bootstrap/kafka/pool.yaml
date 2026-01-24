@@ -12,4 +12,4 @@ spec:
     - controller
   storage:
     type: persistent-claim
-    size: 50Gi
+    size: 20Gi
