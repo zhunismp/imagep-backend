@@ -5,35 +5,25 @@ metadata:
   namespace: argocd
 spec:
   generators:
-    - list:
-        elements:
-          - name: kafka-operator
-            namespace: kafka
-            repoURL: https://strimzi.io/charts
-            chart: strimzi-kafka-operator
-            version: 0.50.0
-          - name: external-secrets-operator
-            namespace: eso
-            repoURL: https://charts.external-secrets.io
-            chart: external-secrets
-            version: 0.10.5
+    - git:
+        repoURL: https://github.com/zhunismp/imagep-backend.git
+        revision: master
+        directories:
+          - path: bootstrap/*
   template:
     metadata:
-      name: bootstrap-{{name}}
+      name: bootstrap-{{path.basename}}
       annotations:
         argocd.argoproj.io/sync-wave: "0"
     spec:
       project: bootstrap
       source:
-        repoURL: '{{repoURL}}'
-        chart: '{{chart}}'
-        targetRevision: '{{version}}'
-        helm:
-          valueFiles:
-            - k8s/bootstrap/{{name}}/values.yaml
+        repoURL: https://github.com/zhunismp/imagep-backend.git
+        targetRevision: master
+        path: '{{path}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{namespace}}'
+        namespace: argocd
       syncPolicy:
         automated:
           prune: true
