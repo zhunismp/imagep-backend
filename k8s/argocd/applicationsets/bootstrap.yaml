@@ -9,7 +9,7 @@ spec:
         repoURL: https://github.com/zhunismp/imagep-backend.git
         revision: master
         directories:
-          - path: bootstrap/*
+          - path: k8s/bootstrap/*
   template:
     metadata:
       name: bootstrap-{{path.basename}}
