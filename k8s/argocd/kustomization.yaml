@@ -1,6 +1,6 @@
 resources:
-  - app.yaml
   - project.yaml
+  - app.yaml
   - applicationsets/bootstrap.yaml
   - applicationsets/cluster.yaml
   - applicationsets/apps.yaml
