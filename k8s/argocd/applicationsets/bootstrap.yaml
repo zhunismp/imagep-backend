@@ -33,15 +33,12 @@ spec:
           targetRevision: '{{version}}'
           helm:
             releaseName: '{{name}}'
+            valueFiles:
+              - $values/k8s/bootstrap/{{name}}/values.yaml
 
         - repoURL: https://github.com/zhunismp/imagep-backend.git
           targetRevision: master
           ref: values
-
-      source:
-        helm:
-          valueFiles:
-            - $values/k8s/bootstrap/{{name}}/values.yaml
 
       destination:
         server: https://kubernetes.default.svc
