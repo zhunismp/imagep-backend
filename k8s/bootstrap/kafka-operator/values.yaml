@@ -1,1 +1,2 @@
-watchNamespaces: kafka
+watchNamespaces:
+  - kafka
