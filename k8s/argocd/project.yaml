@@ -3,6 +3,8 @@ kind: AppProject
 metadata:
   name: bootstrap
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   description: Platform bootstrap components (operators, controllers)
 
@@ -24,6 +26,8 @@ kind: AppProject
 metadata:
   name: cluster
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   description: Cluster components
 
