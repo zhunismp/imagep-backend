@@ -66,11 +66,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: image-apis-service
+  name: image-apis-svc
   namespace: imageapis
 spec:
   selector:
-    app: image-apis-deployment
+    app: image-apis-pods
   type: ClusterIP
   ports:
   - name: http
