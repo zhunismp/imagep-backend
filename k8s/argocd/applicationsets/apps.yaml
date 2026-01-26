@@ -5,14 +5,15 @@ metadata:
   namespace: argocd
 spec:
   generators:
-    - git:
-        repoURL: https://github.com/zhunismp/imagep-backend.git
-        revision: master
-        directories:
-          - path: k8s/apps/*
+    - list:
+        elements:
+          - name: image-apis-prod
+            path: k8s/apps/image-apis
+            namespace: imageapis
+
   template:
     metadata:
-      name: '{{path.basename}}'
+      name: '{{name}}'
       annotations:
         argocd.argoproj.io/sync-wave: "2"
     spec:
@@ -23,7 +24,7 @@ spec:
         path: '{{path}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: '{{path.basename}}'
+        namespace: '{{namespace}}'
       syncPolicy:
         automated:
           prune: true
