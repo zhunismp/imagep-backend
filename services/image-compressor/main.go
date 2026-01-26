@@ -43,11 +43,14 @@ func main() {
 		slog.Error("Failed to start consumer", "error", err)
 		return
 	}
-	consumer.Start(ctx, runtime.NumCPU())
+
+	if err := consumer.Start(ctx, runtime.NumCPU()); err != nil {
+		slog.Error("Consumer exit with error", "error", err)
+	}
 
 	// Gracefully shutdown
 	<-ctx.Done()
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	consumer.Shutdown(shutdownCtx)
