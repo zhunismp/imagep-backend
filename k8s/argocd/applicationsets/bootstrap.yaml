@@ -18,12 +18,12 @@ spec:
             chartRepo: https://charts.external-secrets.io
             chart: external-secrets
             version: 0.10.5
-            
+
           - name: redis
             namespace: redis
             chartRepo: https://charts.bitnami.com/bitnami
             chart: redis
-            version: 19.5.2
+            version: 24.1.2
 
   template:
     metadata:
