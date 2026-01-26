@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name:  image-apis
-        image: docker.io/zhunismp/image-apis:v0.0.1
+        image: docker.io/zhunismp/image-apis:v0.0.2
 
         ports:
         - containerPort:  8080
@@ -66,14 +66,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: MYAPP
+  name: image-apis-service
   namespace: imageapis
 spec:
   selector:
     app: image-apis-deployment
   type: ClusterIP
   ports:
-  - name: image-apis-service
+  - name: http
     protocol: TCP
     port: 80
     targetPort: 8080
