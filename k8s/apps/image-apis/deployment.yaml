@@ -20,6 +20,7 @@ spec:
       labels:
         app:  image-apis-pod
     spec:
+      serviceAccountName: sa
       containers:
       - name:  image-apis
         image: docker.io/zhunismp/image-apis:v0.0.2
