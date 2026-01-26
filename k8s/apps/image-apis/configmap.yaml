@@ -9,7 +9,7 @@ data:
 
   KAFKA_ADDRESS: "imagep-kafka-bootstrap.kafka.svc.cluster.local:9092"
 
-  REDIS_ADDRESS: "redis.default.svc.cluster.local:6379"
+  REDIS_ADDRESS: "redis-master.redis.svc.cluster.local:6379"
   REDIS_DB: "0"
 
   APP_NAME: "image-apis"
