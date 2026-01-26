@@ -8,13 +8,13 @@ module "gsa" {
 
   image_apis_account_id = "${local.project_name}-image-apis-gsa"
   image_apis_roles = [
-    "roles/storage.objectViewer",
+    "roles/storage.objectAdmin",
     "roles/secretmanager.secretAccessor"
   ]
 
   image_compressor_account_id = "${local.project_name}-image-processor-gsa"
   image_compressor_roles = [
-    "roles/storage.objectViewer",
+    "roles/storage.objectAdmin",
     "roles/secretmanager.secretAccessor"
   ]
 }
