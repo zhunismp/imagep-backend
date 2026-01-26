@@ -12,7 +12,7 @@ module "gsa" {
     "roles/secretmanager.secretAccessor"
   ]
 
-  image_compressor_account_id = "${local.project_name}-image-processor-gsa"
+  image_compressor_account_id = "${local.project_name}-image-compressor-gsa"
   image_compressor_roles = [
     "roles/storage.objectAdmin",
     "roles/secretmanager.secretAccessor"
