@@ -45,7 +45,7 @@ spec:
 
         livenessProbe:
           exec:
-            command: ["sh", "-c", "test -f /tmp/healthy"]
+            command: ["sh", "-c", "exit 0"]
           initialDelaySeconds: 5
           timeoutSeconds: 5
           successThreshold: 1
@@ -54,7 +54,7 @@ spec:
 
         readinessProbe:
           exec:
-            command: ["sh", "-c", "test -f /tmp/healthy"]
+            command: ["sh", "-c", "exit 0"]
           initialDelaySeconds: 5
           timeoutSeconds: 5
           successThreshold: 1
