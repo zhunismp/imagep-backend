@@ -70,7 +70,7 @@ metadata:
   namespace: imageapis
 spec:
   selector:
-    app: image-apis-pods
+    app: image-apis-pod
   type: ClusterIP
   ports:
   - name: http
