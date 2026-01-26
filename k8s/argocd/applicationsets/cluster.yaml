@@ -16,7 +16,7 @@ spec:
       annotations:
         argocd.argoproj.io/sync-wave: "1"
     spec:
-      project: cluster
+      project: default
       source:
         repoURL: https://github.com/zhunismp/imagep-backend.git
         targetRevision: master

@@ -1,0 +1,15 @@
+architecture: standalone
+
+auth:
+  enabled: false
+
+master:
+  persistence:
+    enabled: true
+    size: 5Gi
+
+replica:
+  replicaCount: 0
+
+metrics:
+  enabled: false

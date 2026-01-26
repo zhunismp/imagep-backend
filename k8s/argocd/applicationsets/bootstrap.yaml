@@ -18,6 +18,12 @@ spec:
             chartRepo: https://charts.external-secrets.io
             chart: external-secrets
             version: 0.10.5
+            
+          - name: redis
+            namespace: redis
+            chartRepo: https://charts.bitnami.com/bitnami
+            chart: redis
+            version: 19.5.2
 
   template:
     metadata:
@@ -25,7 +31,7 @@ spec:
       annotations:
         argocd.argoproj.io/sync-wave: "0"
     spec:
-      project: bootstrap
+      project: default
 
       sources:
         - repoURL: '{{chartRepo}}'
