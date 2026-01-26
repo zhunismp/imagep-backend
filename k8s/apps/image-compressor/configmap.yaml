@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-compressor-config
+  namespace: imagecompressor
+data:
+  KAFKA_ADDRESS: "imagep-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  KAFKA_CONSUME_TOPIC: "process-image"
+  KAFKA_CONSUMER_GROUP: "cg-compressor"
+
+  REDIS_ADDRESS: "redis-master.redis.svc.cluster.local:6379"
+  REDIS_DB: "0"
+
+  APP_NAME: "image-compressor"
+  ENVIRONMENT: "production"

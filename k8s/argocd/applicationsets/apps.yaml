@@ -10,6 +10,9 @@ spec:
           - name: image-apis
             path: k8s/apps/image-apis
             namespace: imageapis
+          - name: image-compressor
+            path: k8s/apps/image-compressor
+            namespace: imagecompressor
 
   template:
     metadata:
