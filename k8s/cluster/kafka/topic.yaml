@@ -7,4 +7,4 @@ metadata:
     strimzi.io/cluster: imagep
 spec:
   partitions: 3
-  replicas: 3
+  replicas: 2
