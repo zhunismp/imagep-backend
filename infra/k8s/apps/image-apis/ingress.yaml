@@ -20,6 +20,11 @@ metadata:
     konghq.com/strip-path: "false"
 spec:
   ingressClassName: kong
+  tls:
+    - hosts:
+      - imagep.zhunismp.dev
+      secretName: imagep-tls
+
   rules:
     - host: imagep.zhunismp.dev
       http:

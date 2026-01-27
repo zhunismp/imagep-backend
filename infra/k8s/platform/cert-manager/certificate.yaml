@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: imagep-cert
+  namespace: kong
+spec:
+  secretName: imagep-tls
+  issuerRef:
+    name: imagep-issuer
+    kind: ClusterIssuer
+  dnsNames:
+  - imagep.zhunismp.dev

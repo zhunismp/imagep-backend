@@ -30,6 +30,12 @@ spec:
             chartRepo: https://charts.konghq.com
             chart: kong
             version: 3.0.2
+          
+          - name: cert-manager-operator
+            namespace: cert-manager
+            chartRepo: https://charts.jetstack.io
+            chart: cert-manager
+            version: 1.19.2
 
   template:
     metadata:
