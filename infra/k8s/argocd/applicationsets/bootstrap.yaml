@@ -24,6 +24,12 @@ spec:
             chartRepo: https://charts.bitnami.com/bitnami
             chart: redis
             version: 24.1.2
+          
+          - name: kong
+            namespace: kong
+            chartRepo: https://charts.konghq.com
+            chart: kong
+            version: 3.0.2
 
   template:
     metadata:

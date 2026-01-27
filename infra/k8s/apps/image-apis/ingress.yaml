@@ -1,0 +1,32 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: ip-ratelimit
+  namespace: imageapis
+plugin: rate-limiting
+config:
+  minute: 100
+  policy: local
+  limit_by: ip
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: image-apis-ingress
+  namespace: imageapis
+  annotations:
+    kubernetes.io/ingress.class: kong
+    konghq.com/plugins: ip-ratelimit
+    konghq.com/strip-path: "true"
+spec:
+  rules:
+    - host: imagep.zhunismp.dev
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: image-apis-svc
+                port:
+                  number: 80
