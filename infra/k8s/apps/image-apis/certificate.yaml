@@ -2,7 +2,7 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: imagep-cert
-  namespace: kong
+  namespace: imageapis
 spec:
   secretName: imagep-tls
   issuerRef:
