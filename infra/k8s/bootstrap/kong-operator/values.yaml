@@ -12,6 +12,12 @@ proxy:
   annotations:
     cloud.google.com/load-balancer-type: "External"
 
+admin:
+  enabled: true
+  type: ClusterIP
+  http:
+    enabled: true
+
 env:
   database: "off"
 

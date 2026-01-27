@@ -19,6 +19,7 @@ metadata:
     konghq.com/plugins: ip-ratelimit
     konghq.com/strip-path: "true"
 spec:
+  ingressClassName: kong
   rules:
     - host: imagep.zhunismp.dev
       http:
