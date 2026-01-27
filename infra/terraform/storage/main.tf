@@ -21,4 +21,8 @@ resource "google_storage_bucket" "imagep-bucket" {
             type = "Delete"
         }
     }
+
+    lifecycle {
+        prevent_destroy = true
+    }
 }

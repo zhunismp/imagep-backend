@@ -24,7 +24,7 @@ spec:
     - host: imagep.zhunismp.dev
       http:
         paths:
-          - path: /api
+          - path: /imagep
             pathType: Prefix
             backend:
               service:
