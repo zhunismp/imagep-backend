@@ -9,7 +9,7 @@ spec:
         repoURL: https://github.com/zhunismp/imagep-backend.git
         revision: master
         directories:
-          - path: infra/k8s/cluster/*
+          - path: infra/k8s/platform/*
   template:
     metadata:
       name: '{{path.basename}}'

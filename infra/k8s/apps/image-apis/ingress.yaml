@@ -17,14 +17,14 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: kong
     konghq.com/plugins: ip-ratelimit
-    konghq.com/strip-path: "true"
+    konghq.com/strip-path: "false"
 spec:
   ingressClassName: kong
   rules:
     - host: imagep.zhunismp.dev
       http:
         paths:
-          - path: /imagep
+          - path: /api
             pathType: Prefix
             backend:
               service:

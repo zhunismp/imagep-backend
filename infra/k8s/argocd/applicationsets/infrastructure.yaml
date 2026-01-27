@@ -46,7 +46,7 @@ spec:
           helm:
             releaseName: '{{name}}'
             valueFiles:
-              - $values/infra/k8s/bootstrap/{{name}}/values.yaml
+              - $values/infra/k8s/infrastructure/{{name}}/values.yaml
 
         - repoURL: https://github.com/zhunismp/imagep-backend.git
           targetRevision: master
