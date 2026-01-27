@@ -25,7 +25,7 @@ spec:
             chart: redis
             version: 24.1.2
           
-          - name: kong
+          - name: kong-operator
             namespace: kong
             chartRepo: https://charts.konghq.com
             chart: kong
