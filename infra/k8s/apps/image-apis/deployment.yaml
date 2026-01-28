@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:  image-apis-deployment
+  name: image-apis-deployment
   namespace: imageapis
   labels:
-    app:  image-apis-deployment
+    app: image-apis-deployment
 spec:
   selector:
     matchLabels:
@@ -18,50 +18,44 @@ spec:
   template:
     metadata:
       labels:
-        app:  image-apis-pod
+        app: image-apis-pod
     spec:
       serviceAccountName: sa
       containers:
-      - name:  image-apis
-        image: docker.io/zhunismp/image-apis:v0.0.2
-
-        ports:
-        - containerPort:  8080
-          name:  http
-        
-        envFrom:
-          - configMapRef:
-              name: image-apis-config
-          - secretRef:
-              name: image-apis-secret
-
-        resources:
-          requests:
-            cpu: 100m
-            memory: 100Mi
-          limits:
-            cpu: 100m
-            memory: 100Mi
-
-        livenessProbe:
-          tcpSocket:
-            port: 8080
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
-
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          timeoutSeconds: 2
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
-
+        - name: image-apis
+          image: zhunismp/image-apis:fa27d39cb5ecec9eb3ee530ec1473777403b0f1e
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: image-apis-config
+            - secretRef:
+                name: image-apis-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 100Mi
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -74,7 +68,11 @@ spec:
     app: image-apis-pod
   type: ClusterIP
   ports:
-  - name: http
-    protocol: TCP
-    port: 80
-    targetPort: 8080
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+  template:
+    spec:
+      containers:
+        - image: zhunismp/image-apis:fa27d39cb5ecec9eb3ee530ec1473777403b0f1e
