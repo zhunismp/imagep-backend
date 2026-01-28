@@ -1,0 +1,28 @@
+name: Update Kubernetes Deployment
+description: Update k8s image and commit manifest
+
+inputs:
+  service:
+    required: true
+  image:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Update deployment image
+      shell: bash
+      run: |
+        yq -i '
+          .spec.template.spec.containers[0].image = "${{ inputs.image }}"
+        ' infra/k8s/apps/${{ inputs.service }}/deployment.yaml
+
+    - name: Commit and push manifest
+      shell: bash
+      run: |
+        git config user.name "github-actions"
+        git config user.email "github-actions@github.com"
+
+        git add infra/k8s/apps/${{ inputs.service }}/deployment.yaml
+        git commit -m "chore(k8s): update ${{ inputs.service }} image" || true
+        git push

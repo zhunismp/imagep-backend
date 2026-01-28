@@ -1,0 +1,22 @@
+name: image-apis CI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'services/image-compressor/**'
+      - 'internal/**'
+
+jobs:
+  build-and-publish-docker:
+    uses: ./.github/actions/docker/build-and-publish
+    with:
+      service: image-compressor
+      context: .
+    secrets: inherit
+  
+  update-deployment-image:
+    uses: ./.github/actions/k8s/update-deployment
+    with:
+      service: image-apis
+      image: ${{ steps.docker.outputs.image }}

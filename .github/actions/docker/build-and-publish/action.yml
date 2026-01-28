@@ -1,0 +1,38 @@
+name: Docker Build & Push
+description: Build and push Docker image
+
+inputs:
+  service:
+    required: true
+  context:
+    required: true
+  registry:
+    required: false
+    default: docker.io
+
+outputs:
+  image:
+    description: Full image reference
+    value: ${{ steps.build.outputs.image }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Login to Docker registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ vars.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    - id: build
+      shell: bash
+      run: |
+        IMAGE=${{ vars.DOCKER_USERNAME }}/${{ inputs.service }}:${{ github.sha }}
+
+        docker build -t $IMAGE -f docker/${{ inputs.service }}.dockerfile ${{ inputs.context }}
+        docker push $IMAGE
+
+        echo "image=$IMAGE" >> $GITHUB_OUTPUT
