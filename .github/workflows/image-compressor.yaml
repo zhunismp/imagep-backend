@@ -38,5 +38,5 @@ jobs:
       - name: Update deployment image version
         uses: ./.github/actions/k8s/update-deployment
         with:
-          service: image-apis
+          service: image-compressor
           image: ${{ needs.build-and-publish-docker.outputs.image }}
