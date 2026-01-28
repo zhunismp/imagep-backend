@@ -33,7 +33,7 @@ runs:
       run: |
         IMAGE=${{ inputs.docker-username }}/${{ inputs.service }}:${{ github.sha }}
 
-        docker build -t $IMAGE -f docker/${{ inputs.service }}.dockerfile ${{ inputs.context }}
+        docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE -f docker/${{ inputs.service }}.dockerfile ${{ inputs.context }}
         docker push $IMAGE
 
         echo "image=$IMAGE" >> $GITHUB_OUTPUT
