@@ -6,9 +6,10 @@ inputs:
     required: true
   context:
     required: true
-  registry:
-    required: false
-    default: docker.io
+  docker-username:
+    required: true
+  docker-token:
+    required: true
 
 outputs:
   image:
@@ -23,14 +24,14 @@ runs:
     - name: Login to Docker registry
       uses: docker/login-action@v3
       with:
-        registry: ${{ inputs.registry }}
-        username: ${{ vars.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_TOKEN }}
+        registry: docker.io
+        username: ${{ inputs.docker-username }}
+        password: ${{ inputs.docker-token }}
 
     - id: build
       shell: bash
       run: |
-        IMAGE=${{ vars.DOCKER_USERNAME }}/${{ inputs.service }}:${{ github.sha }}
+        IMAGE=${{ inputs.docker-username }}/${{ inputs.service }}:${{ github.sha }}
 
         docker build -t $IMAGE -f docker/${{ inputs.service }}.dockerfile ${{ inputs.context }}
         docker push $IMAGE

@@ -10,7 +10,7 @@ type AppError struct {
 
 func (e *AppError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("%v - %v | original_err: %v", e.Code, e.Message, e.Err)
+		return fmt.Sprintf("%v - %v | original_error: %v", e.Code, e.Message, e.Err)
 	}
 	return fmt.Sprintf("%v - %v", e.Code, e.Message)
 }

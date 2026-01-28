@@ -1,4 +1,4 @@
-name: image-apis CI
+name: image-compressor CI
 
 on:
   push:
@@ -9,14 +9,23 @@ on:
 
 jobs:
   build-and-publish-docker:
-    uses: ./.github/actions/docker/build-and-publish
-    with:
-      service: image-compressor
-      context: .
-    secrets: inherit
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.builder.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and publish docker
+        id: builder
+        uses: ./.github/actions/docker/build-and-publish
+        with:
+          docker-username: ${{ vars.DOCKER_USERNAME }}
+          docker-token: ${{ secrets.DOCKER_TOKEN }}
+          service: image-compressor
+          context: .
   
   update-deployment-image:
+    needs: build-and-publish-docker
     uses: ./.github/actions/k8s/update-deployment
     with:
       service: image-apis
-      image: ${{ steps.build-and-publish-docker.outputs.image }}
+      image: ${{ needs.build-and-publish-docker.outputs.image }}
