@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:  image-compressor-deployment
+  name: image-compressor-deployment
   namespace: imagecompressor
   labels:
-    app:  image-compressor-deployment
+    app: image-compressor-deployment
 spec:
   selector:
     matchLabels:
@@ -18,49 +18,43 @@ spec:
   template:
     metadata:
       labels:
-        app:  image-compressor-pod
+        app: image-compressor-pod
     spec:
       serviceAccountName: sa
       containers:
-      - name:  image-compressor
-        image: docker.io/zhunismp/image-compressor:v0.0.2
-
-        ports:
-        - containerPort:  8080
-          name:  http
-        
-        envFrom:
-          - configMapRef:
-              name: image-compressor-config
-          - secretRef:
-              name: image-compressor-secret
-
-        resources:
-          requests:
-            cpu: 100m
-            memory: 100Mi
-          limits:
-            cpu: 100m
-            memory: 100Mi
-
-        livenessProbe:
-          exec:
-            command: ["sh", "-c", "exit 0"]
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
-
-        readinessProbe:
-          exec:
-            command: ["sh", "-c", "exit 0"]
-          initialDelaySeconds: 5
-          timeoutSeconds: 5
-          successThreshold: 1
-          failureThreshold: 3
-          periodSeconds: 10
-
+        - name: image-compressor
+          image: zhunismp/image-compressor:468cfbc86fafba78db491650a788c4211da83231
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: image-compressor-config
+            - secretRef:
+                name: image-compressor-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 100Mi
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "exit 0"]
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "exit 0"]
+            initialDelaySeconds: 5
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+            periodSeconds: 10
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -73,7 +67,11 @@ spec:
     app: image-compressor-pod
   type: ClusterIP
   ports:
-  - name: http
-    protocol: TCP
-    port: 80
-    targetPort: 8080
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+  template:
+    spec:
+      containers:
+        - image: zhunismp/image-compressor:468cfbc86fafba78db491650a788c4211da83231
