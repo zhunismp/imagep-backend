@@ -19,7 +19,6 @@ import (
 
 var (
 	pool     *ants.Pool
-	shutdown []func(context.Context) error
 )
 
 func main() {
@@ -59,7 +58,6 @@ func main() {
 	httpServer := transport.NewHttpServer(cfg)
 	httpServer.SetupRoute(ph)
 	httpServer.Start()
-	shutdown = append(shutdown, httpServer.Shutdown)
 
 	// Gracefully shutdown
 	<-ctx.Done()

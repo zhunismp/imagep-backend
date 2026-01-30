@@ -13,9 +13,9 @@ import (
 )
 
 type FileProcessor interface {
-	Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (string, error)
+	Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (service.UploadResponse, error)
 	Process(ctx context.Context, taskId string) error
-	Download(ctx context.Context, taskId string) (service.ProcessingResult, error)
+	Download(ctx context.Context, taskId string) (service.ProcessingResponse, error)
 }
 
 type ProcessingHandler struct {
@@ -41,14 +41,12 @@ func (h *ProcessingHandler) Upload(c *fiber.Ctx) error {
 
 	files := f.File["images"]
 
-	taskId, err = h.fp.Upload(c.Context(), taskId, files)
+	response, err := h.fp.Upload(c.Context(), taskId, files)
 	if err != nil {
 		return mapErr(c, err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"taskId": taskId,
-	})
+	return c.Status(fiber.StatusOK).JSON(response)
 
 }
 
@@ -81,6 +79,10 @@ func (h *ProcessingHandler) Download(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(res)
+}
+
+func (h *ProcessingHandler) Delete(c *fiber.Ctx) error {
+	return nil
 }
 
 func mapErr(c *fiber.Ctx, err error) error {

@@ -61,6 +61,7 @@ func (s *HttpServer) SetupRoute(processingHandler *ProcessingHandler) {
 	s.router.Post("/upload/:taskId", processingHandler.Upload)
 	s.router.Get("/process/:taskId", processingHandler.Process)
 	s.router.Get("/downloads/:taskId", processingHandler.Download)
+	s.router.Delete("/delete/:taskId/:img", processingHandler.Delete)
 }
 
 func (s *HttpServer) Start() {

@@ -9,5 +9,6 @@ type ProcessImageProducer interface {
 
 type ProcessImageMessage struct {
 	TaskId    string
+	ImageId   string
 	ImagePath string
 }
