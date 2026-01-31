@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"mime/multipart"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/panjf2000/ants/v2"
@@ -61,22 +60,23 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 
 	resultCh := make(chan uploadFileResult, len(files))
 
-	for i, file := range files {
+	for _, file := range files {
 		f := file
-		sha := randstr.Hex(8)
+		id := randstr.Hex(8)
 		ext := filepath.Ext(file.Filename)
 		base := strings.TrimSuffix(f.Filename, ext)
 
-		serverFileName := fmt.Sprintf("%s-%s%s", base, sha, ext)
+		serverFileName := fmt.Sprintf("%s-%s%s", base, id, ext)
 		blobPath := fmt.Sprintf("%s/%s", taskId, serverFileName)
 
+		// TODO: worker pool
 		g.Go(func() error {
 			reader, _ := f.Open()
 			defer reader.Close()
 
 			err := fp.blobStorage.UploadBlob(ctx, blobPath, reader)
 			resultCh <- uploadFileResult{
-				Id:             strconv.Itoa(i),
+				Id:             id,
 				FileName:       f.Filename,
 				ServerFileName: serverFileName,
 				Err:            err,
