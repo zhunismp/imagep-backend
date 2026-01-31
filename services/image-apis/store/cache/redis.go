@@ -46,7 +46,6 @@ func (r *redisCache) CreateTask(ctx context.Context, taskId string, t Task) erro
 
 	pipe := r.redisClient.Pipeline()
 	pipe.HSet(ctx, k,
-		"status", string(t.Status),
 		"total", strconv.Itoa(t.Total),
 		"uploaded", strconv.Itoa(t.Uploaded),
 		"completed", strconv.Itoa(t.Completed),
@@ -56,29 +55,6 @@ func (r *redisCache) CreateTask(ctx context.Context, taskId string, t Task) erro
 
 	pipe.Expire(ctx, k, r.ttl)
 	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-
-	return nil
-}
-
-func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status TaskStatus) error {
-	tk := taskKey(taskId)
-
-	exists, err := r.redisClient.Exists(ctx, tk).Result()
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if exists == 0 {
-		return apperrors.New(apperrors.ErrCodeNotFound, "task not found", nil)
-	}
-
-	pipe := r.redisClient.Pipeline()
-	pipe.HSet(ctx, tk, "status", string(status))
-	pipe.Expire(ctx, tk, r.ttl)
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
@@ -178,7 +154,6 @@ func (r *redisCache) GetTaskById(ctx context.Context, taskId string) (Task, erro
 	}
 
 	return Task{
-		Status:       TaskStatus(m["status"]),
 		Total:        toInt(m["total"]),
 		Uploaded:     toInt(m["uploaded"]),
 		Completed:    toInt(m["completed"]),

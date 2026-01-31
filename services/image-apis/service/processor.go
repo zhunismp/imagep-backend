@@ -43,7 +43,7 @@ func NewFileProcessorService(
 type uploadFileResult struct {
 	Id             string `json:"fileId"`
 	FileName       string `json:"fileName"`
-	ServerFileName string `json:"ServerFileName"`
+	ServerFileName string `json:"serverFileName"`
 	Err            error  `json:"errMsg"`
 }
 
@@ -99,10 +99,8 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 		}
 	}
 
-	t := cache.Task{Status: cache.TaskPending}
-
 	// This method is idempotance, if task created it won't create new one.
-	if err := fp.taskCache.CreateTask(ctx, taskId, t); err != nil {
+	if err := fp.taskCache.CreateTask(ctx, taskId, cache.Task{}); err != nil {
 		return UploadResponse{}, err
 	}
 
@@ -144,10 +142,6 @@ func (f *fileProcessorService) Process(ctx context.Context, taskId string) error
 		f.processImageProducer.Produce(ctx, msg)
 	}
 
-	if err := f.taskCache.UpdateTaskStatus(ctx, taskId, cache.TaskProcessing); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -164,14 +158,12 @@ type FileResult struct {
 }
 
 type ProcessingResponse struct {
-	TaskId   string   `json:"taskId"`
-	Status   string   `json:"status"`
-	Progress Progress `json:"progress"`
-
-	Completed []FileResult `json:"completed"`
-	Failed    []FileResult `json:"failed"`
-
-	Next int `json:"next,omitempty"`
+	TaskId      string       `json:"taskId"`
+	Progress    Progress     `json:"progress"`
+	Completed   []FileResult `json:"completed"`
+	Failed      []FileResult `json:"failed"`
+	IsCompleted bool         `json:"isCompleted"`
+	Next        int          `json:"next,omitempty"`
 }
 
 func (f *fileProcessorService) Download(ctx context.Context, taskId string) (ProcessingResponse, error) {
@@ -208,22 +200,17 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 		}
 	}
 
-	status := cache.TaskProcessing
-	done := task.Completed + task.Failed
-
-	if done >= task.Total {
-		status = cache.TaskCompleted
-	}
+	isCompleted := task.Completed+task.Failed >= task.Total
 
 	response := ProcessingResponse{
-		TaskId:    taskId,
-		Status:    string(status),
-		Progress:  progress,
-		Completed: completed,
-		Failed:    failed,
+		TaskId:      taskId,
+		Progress:    progress,
+		Completed:   completed,
+		Failed:      failed,
+		IsCompleted: isCompleted,
 	}
 
-	if status != cache.TaskCompleted {
+	if !isCompleted {
 		response.Next = f.pollingInterval
 	}
 
