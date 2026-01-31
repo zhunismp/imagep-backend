@@ -41,10 +41,10 @@ func NewFileProcessorService(
 }
 
 type uploadFileResult struct {
-	Id             string
-	FileName       string
-	ServerFileName string
-	Err            error
+	Id             string `json:"fileId"`
+	FileName       string `json:"fileName"`
+	ServerFileName string `json:"ServerFileName"`
+	Err            error  `json:"errMsg"`
 }
 
 type UploadResponse struct {
@@ -55,7 +55,7 @@ type UploadResponse struct {
 
 func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (UploadResponse, error) {
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, wctx := errgroup.WithContext(ctx)
 	g.SetLimit(8)
 
 	resultCh := make(chan uploadFileResult, len(files))
@@ -74,7 +74,7 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 			reader, _ := f.Open()
 			defer reader.Close()
 
-			err := fp.blobStorage.UploadBlob(ctx, blobPath, reader)
+			err := fp.blobStorage.UploadBlob(wctx, blobPath, reader)
 			resultCh <- uploadFileResult{
 				Id:             id,
 				FileName:       f.Filename,
@@ -99,13 +99,12 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 		}
 	}
 
-	t := cache.Task{
-		Status:   cache.TaskPending,
-		Uploaded: len(uploaded),
-	}
+	t := cache.Task{Status: cache.TaskPending}
 
 	// This method is idempotance, if task created it won't create new one.
-	fp.taskCache.CreateTask(ctx, taskId, t)
+	if err := fp.taskCache.CreateTask(ctx, taskId, t); err != nil {
+		return UploadResponse{}, err
+	}
 
 	cf := make([]cache.File, 0, len(uploaded))
 	for _, file := range uploaded {
@@ -119,7 +118,9 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 		cf = append(cf, f)
 	}
 
-	fp.taskCache.BatchSaveFiles(ctx, taskId, cf)
+	if err := fp.taskCache.BatchSaveFiles(ctx, taskId, cf); err != nil {
+		return UploadResponse{}, err
+	}
 
 	return UploadResponse{
 		TaskId:   taskId,
@@ -151,26 +152,26 @@ func (f *fileProcessorService) Process(ctx context.Context, taskId string) error
 }
 
 type Progress struct {
-	Total     int
-	Completed int
-	Failed    int
+	Total     int `json:"total"`
+	Completed int `json:"completed"`
+	Failed    int `json:"failed"`
 }
 
 type FileResult struct {
-	ServerFileName string
-	FileName       string
-	signedURL      string
+	ServerFileName string `json:"serverFileName"`
+	FileName       string `json:"fileName"`
+	SignedURL      string `json:"signedUrl,omitempty"`
 }
 
 type ProcessingResponse struct {
-	TaskId   string
-	Status   string
-	Progress Progress
+	TaskId   string   `json:"taskId"`
+	Status   string   `json:"status"`
+	Progress Progress `json:"progress"`
 
-	Completed []FileResult
-	Failed    []FileResult
+	Completed []FileResult `json:"completed"`
+	Failed    []FileResult `json:"failed"`
 
-	Next int
+	Next int `json:"next,omitempty"`
 }
 
 func (f *fileProcessorService) Download(ctx context.Context, taskId string) (ProcessingResponse, error) {
@@ -197,7 +198,7 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 		fileResult := FileResult{
 			ServerFileName: file.ServerName,
 			FileName:       file.OriginalName,
-			signedURL:      file.SignedURL,
+			SignedURL:      file.SignedURL,
 		}
 
 		if file.Status == cache.FileCompleted {
@@ -207,15 +208,22 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 		}
 	}
 
+	status := cache.TaskProcessing
+	done := task.Completed + task.Failed
+
+	if done >= task.Total {
+		status = cache.TaskCompleted
+	}
+
 	response := ProcessingResponse{
 		TaskId:    taskId,
-		Status:    string(task.Status),
+		Status:    string(status),
 		Progress:  progress,
 		Completed: completed,
 		Failed:    failed,
 	}
 
-	if task.Status != cache.TaskCompleted {
+	if status != cache.TaskCompleted {
 		response.Next = f.pollingInterval
 	}
 

@@ -58,7 +58,11 @@ func (r *redisCache) CreateTask(ctx context.Context, taskId string, t Task) erro
 	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
 
 	_, err = pipe.Exec(ctx)
-	return err
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	return nil
 }
 
 func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status TaskStatus) error {
@@ -77,7 +81,11 @@ func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status
 	pipe.Expire(ctx, tk, r.ttl)
 
 	_, err = pipe.Exec(ctx)
-	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	return nil
 }
 
 func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []File) error {
@@ -143,7 +151,11 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
 
 	_, err = pipe.Exec(ctx)
-	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	if err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	return nil
 }
 
 func (r *redisCache) GetTaskById(ctx context.Context, taskId string) (Task, error) {
@@ -214,7 +226,7 @@ func (r *redisCache) GetFilesByTaskId(ctx context.Context, taskId string) ([]Fil
 
 		out = append(out, File{
 			Status:       FileStatus(m["status"]),
-			FileID:       pickNonEmpty(m["file_id"], ids[i]),
+			FileID:       pick(m["file_id"], ids[i]),
 			OriginalName: m["original_name"],
 			ServerName:   m["server_name"],
 			SignedURL:    m["signed_url"],
@@ -233,7 +245,7 @@ func (r *redisCache) Shutdown(ctx context.Context) error {
 func taskKey(taskId string) string             { return fmt.Sprintf("task:%s", taskId) }
 func taskFilesKey(taskId string) string        { return fmt.Sprintf("task:%s:files", taskId) }
 func taskFileKey(taskId, fileId string) string { return fmt.Sprintf("task:%s:file:%s", taskId, fileId) }
-func pickNonEmpty(v, fallback string) string {
+func pick(v, fallback string) string {
 	if v != "" {
 		return v
 	}

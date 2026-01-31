@@ -3,6 +3,7 @@ package blob
 import (
 	"context"
 	"io"
+	"log/slog"
 	"time"
 
 	"cloud.google.com/go/storage"
@@ -39,6 +40,7 @@ func (b *googleCloudStorage) UploadBlob(ctx context.Context, path string, conten
 	}
 
 	if err := w.Close(); err != nil {
+		slog.Error("failed to upload", "error", err)
 		return apperrors.New(apperrors.ErrCodeInternal, "failed to finalize GCS upload", err)
 	}
 

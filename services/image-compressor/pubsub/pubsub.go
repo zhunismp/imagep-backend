@@ -3,8 +3,8 @@ package pubsub
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"sync"
 	"time"
@@ -22,220 +22,260 @@ type ConsumerWorker struct {
 	cfg config.Config
 	svc imageCompressorSvc
 
-	wCtx    context.Context
-	wCancel context.CancelFunc
-	wg      sync.WaitGroup
-
+	wg     sync.WaitGroup
 	taskCh chan *kafka.Message
 	ackCh  chan ack
+
+	commitDone chan struct{}
+	pollDone   chan struct{}
 }
 
 type ack struct {
-	tp  kafka.TopicPartition
-	off kafka.Offset
+	topic     string
+	partition int32
+	offset    kafka.Offset
 }
 
 func NewConsumerWorker(cfg config.Config, svc imageCompressorSvc) (*ConsumerWorker, error) {
 	consumer, err := NewKafkaConsumer(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create consumer: %v", err)
+		return nil, fmt.Errorf("failed to create consumer: %w", err)
 	}
 
 	if err := consumer.Subscribe(cfg.KafkaConsumeTopic, nil); err != nil {
-		return nil, fmt.Errorf("Failed to subscribe %s topic: %w", cfg.KafkaConsumeTopic, err)
+		return nil, fmt.Errorf("failed to subscribe %s topic: %w", cfg.KafkaConsumeTopic, err)
 	}
 
-	tasks := make(chan *kafka.Message, 1000)
-	acks := make(chan ack, 1000)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &ConsumerWorker{
-		kc:      consumer,
-		svc:     svc,
-		cfg:     cfg,
-		wCtx:    ctx,
-		wCancel: cancel,
-		taskCh:  tasks,
-		ackCh:   acks,
+		kc:         consumer,
+		cfg:        cfg,
+		svc:        svc,
+		taskCh:     make(chan *kafka.Message, 1000),
+		ackCh:      make(chan ack, 1000),
+		commitDone: make(chan struct{}),
+		pollDone:   make(chan struct{}),
 	}, nil
 }
 
 func (c *ConsumerWorker) Start(ctx context.Context, parallelWorkers int) error {
-	c.startWoker(c.wCtx, parallelWorkers)
-	c.startBackgroundCommit(c.wCtx)
+	if parallelWorkers <= 0 {
+		return errors.New("parallelWorkers must be > 0")
+	}
+
+	c.startWorkers(parallelWorkers)
+	c.startBackgroundCommit()
+
+	slog.Info("consumer started", "topic", c.cfg.KafkaConsumeTopic, "workers", parallelWorkers)
+	go c.startPollLoop(ctx)
+
+	return nil
+}
+
+func (c *ConsumerWorker) Shutdown(ctx context.Context) error {
+	slog.Info("shutting down consumer")
+
+	select {
+	case <-c.pollDone:
+		// ok
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	close(c.taskCh)
+
+	workersDone := make(chan struct{})
+	go func() {
+		c.wg.Wait()
+		close(workersDone)
+	}()
+
+	select {
+	case <-workersDone:
+		slog.Info("All workers stop gracefully")
+	case <-ctx.Done():
+		slog.Error("shutdown timeout while waiting for workers; forcing close")
+		_ = c.kc.Close()
+		return ctx.Err()
+	}
+
+	close(c.ackCh)
+
+	select {
+	case <-c.commitDone:
+		slog.Info("Background commit worker stop successfully")
+	case <-ctx.Done():
+		slog.Error("shutdown timeout while waiting for commit; forcing close")
+		_ = c.kc.Close()
+		return ctx.Err()
+	}
+
+	return c.kc.Close()
+}
+
+func (c *ConsumerWorker) startPollLoop(ctx context.Context) {
+	defer close(c.pollDone)
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			slog.Info("Poll loop stopped by root context", "err", ctx.Err())
+			return
 
 		default:
-			// Poll for events (100ms timeout)
 			ev := c.kc.Poll(100)
 			if ev == nil {
 				continue
 			}
 
 			switch e := ev.(type) {
+
 			case *kafka.Message:
+				// blocks if buffer full
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
-				default:
-					c.taskCh <- e
+					return
+				case c.taskCh <- e:
 				}
 
 			case kafka.Error:
-				slog.Error("Consumer error", "error", e)
+				slog.Error("consumer error", "error", e)
 				if e.Code() == kafka.ErrAllBrokersDown {
-					return fmt.Errorf("all brokers down")
+					return
 				}
 
 			case kafka.AssignedPartitions:
-				slog.Info("Partitions assigned", "message", e)
-				err := c.kc.Assign(e.Partitions)
-				if err != nil {
-					slog.Error("Failed to assign partitions", "error", err)
+				slog.Info("partitions assigned", "count", len(e.Partitions))
+				if err := c.kc.Assign(e.Partitions); err != nil {
+					slog.Error("failed to assign partitions", "error", err)
 				}
 
 			case kafka.RevokedPartitions:
-				slog.Info("Partitions revoked", "message", e)
-				err := c.kc.Unassign()
-				if err != nil {
-					slog.Error("Failed to unassign partitions", "error", err)
+				slog.Info("partitions revoked", "count", len(e.Partitions))
+				if err := c.kc.Unassign(); err != nil {
+					slog.Error("failed to unassign partitions", "error", err)
 				}
 
 			default:
-				slog.Info("Ignored event", "message", e)
+				// ignore
 			}
 		}
 	}
 }
 
-func (c *ConsumerWorker) Shutdown(ctx context.Context) error {
-	slog.Info("Shutting down consumer")
-
-	// stop accepting new work
-	close(c.taskCh)
-
-	done := make(chan struct{})
-	go func() {
-		c.wg.Wait()
-		close(done)
-	}()
-
-	// wait for all workers to finish or timeout
-	select {
-	case <-ctx.Done():
-		slog.Error("Timeout was exceeded try to force shutdown")
-		c.wCancel()
-		return ctx.Err()
-	case <-done:
-		close(c.ackCh)
-		return c.kc.Close()
-	}
-}
-
-func (c *ConsumerWorker) startWoker(ctx context.Context, parallelWorkers int) {
-	for i := range parallelWorkers {
+func (c *ConsumerWorker) startWorkers(parallelWorkers int) {
+	for i := 0; i < parallelWorkers; i++ {
 		c.wg.Add(1)
+
 		go func(workerID int) {
 			defer c.wg.Done()
-			slog.Info("Worker started", "worker_id", workerID)
+			slog.Info("worker started", "worker_id", workerID)
 
-			for {
+			for msg := range c.taskCh {
+				msgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				err := c.processMessage(msgCtx, msg)
+				cancel()
+
+				if err != nil {
+					slog.Error("failed to process message",
+						"error", err,
+						"topic", deref(msg.TopicPartition.Topic),
+						"partition", msg.TopicPartition.Partition,
+						"offset", msg.TopicPartition.Offset,
+					)
+					continue
+				}
+
 				select {
-				case <-ctx.Done():
-					return
-				case msg, ok := <-c.taskCh:
-					if !ok {
-						return // Channel closed
-					}
-
-					if err := c.processMessage(msg); err != nil {
-						slog.Error("Failed to process message", "error", err)
-						continue
-						// retry, DLQ, or skip
-						// Don't send ack on failure for at-least-once delivery
-					}
-
-					// Signal successful processing
-					c.ackCh <- ack{
-						tp:  msg.TopicPartition,
-						off: msg.TopicPartition.Offset,
-					}
-
+				case c.ackCh <- ack{
+					topic:     deref(msg.TopicPartition.Topic),
+					partition: msg.TopicPartition.Partition,
+					offset:    msg.TopicPartition.Offset,
+				}:
+				default:
+					// ack buffer full or closed/draining; commit loop will catch up
 				}
 			}
+
+			slog.Info("worker exited", "worker_id", workerID)
 		}(i)
 	}
 }
 
-func (c *ConsumerWorker) startBackgroundCommit(ctx context.Context) {
-	pending := make(map[kafka.TopicPartition]kafka.Offset)
-
-	commit := func() {
-		if len(pending) > 0 {
-			offsets, err := c.kc.Commit()
-			if err != nil {
-				slog.Error("Failed to commit to kafka", "error", err)
-			} else {
-				slog.Info("Successfully commited", "partitions", len(offsets))
-			}
-			pending = make(map[kafka.TopicPartition]kafka.Offset)
-		}
+func (c *ConsumerWorker) startBackgroundCommit() {
+	type key struct {
+		topic     string
+		partition int32
 	}
 
-	go func(ctx context.Context) {
+	pending := make(map[key]kafka.Offset)
+
+	commit := func() {
+		if len(pending) == 0 {
+			return
+		}
+		if _, err := c.kc.Commit(); err != nil {
+			slog.Error("failed to commit offsets", "error", err)
+			return
+		}
+		slog.Info("committed offsets", "partitions", len(pending))
+		pending = make(map[key]kafka.Offset)
+	}
+
+	go func() {
+		defer close(c.commitDone)
+
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 		defer commit()
 
 		for {
 			select {
-			case <-ctx.Done():
-				return
-			case ack, ok := <-c.ackCh:
+			case a, ok := <-c.ackCh:
 				if !ok {
 					return
 				}
 
-				// Store offset for successful message (next offset to read)
-				nextOffset := ack.off + 1
+				k := key{topic: a.topic, partition: a.partition}
+				next := a.offset + 1
+
+				// only move forward
+				if cur, ok := pending[k]; ok && next <= cur {
+					continue
+				}
+				pending[k] = next
+
+				topic := a.topic
 				tp := kafka.TopicPartition{
-					Topic:     ack.tp.Topic,
-					Partition: ack.tp.Partition,
-					Offset:    nextOffset,
+					Topic:     &topic,
+					Partition: a.partition,
+					Offset:    next,
 				}
 
-				pending[ack.tp] = nextOffset
-
-				// Store offset locally
-				_, err := c.kc.StoreOffsets([]kafka.TopicPartition{tp})
-				if err != nil {
-					log.Printf("Failed to store offset: %v", err)
+				if _, err := c.kc.StoreOffsets([]kafka.TopicPartition{tp}); err != nil {
+					slog.Error("failed to store offset",
+						"error", err, "topic", a.topic, "partition", a.partition, "offset", next)
 				}
 
 			case <-ticker.C:
 				commit()
 			}
 		}
-	}(ctx)
+	}()
 }
 
-func (c *ConsumerWorker) processMessage(msg *kafka.Message) error {
+func (c *ConsumerWorker) processMessage(ctx context.Context, msg *kafka.Message) error {
 	var parsedMsg ProcessImageMessage
 	if err := json.Unmarshal(msg.Value, &parsedMsg); err != nil {
-		return fmt.Errorf("Failed to unmarshall message: %v", err)
+		slog.Error("invalid message json; skipping", "error", err)
+		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	return c.svc.CompressAndUploadBlob(ctx, parsedMsg.TaskId, parsedMsg.ImagePath, parsedMsg.ImageId)
+}
 
-	if err := c.svc.CompressAndUploadBlob(ctx, parsedMsg.TaskId, parsedMsg.ImagePath, parsedMsg.ImageId); err != nil {
-		return err
+func deref(s *string) string {
+	if s == nil {
+		return ""
 	}
-
-	return nil
+	return *s
 }

@@ -53,13 +53,15 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	consumer.Shutdown(shutdownCtx)
+	if err := consumer.Shutdown(shutdownCtx); err != nil {
+		slog.Error("Failed to shutdown consumer", "error", err)
+	}
 
 	if err := blobStorage.Shutdown(shutdownCtx); err != nil {
-		slog.Error("Failed to shutdown blob storage")
+		slog.Error("Failed to shutdown blob storage", "error", err)
 	}
 
 	if err := redis.Shutdown(shutdownCtx); err != nil {
-		slog.Error("Failed to shutdown redis cache")
+		slog.Error("Failed to shutdown redis cache", "error", err)
 	}
 }
