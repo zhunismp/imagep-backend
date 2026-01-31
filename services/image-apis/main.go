@@ -53,7 +53,7 @@ func main() {
 	}
 
 	fps := service.NewFileProcessorService(kafka, redis, blobStorage, pool, cfg.PollingInterval, "process-image")
-	ph := transport.NewProcessHandler(fps, cfg.FrontendHost)
+	ph := transport.NewProcessHandler(fps)
 
 	httpServer := transport.NewHttpServer(cfg)
 	httpServer.SetupRoute(ph)

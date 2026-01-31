@@ -30,7 +30,6 @@ type AppCfg struct {
 	BaseApiPrefix   string
 	MaxFiles        int
 	PollingInterval int
-	FrontendHost    string
 }
 
 type Config struct {
@@ -55,7 +54,6 @@ type In struct {
 	AppBaseApiPrefix   string `env:"BASE_API_PREFIX, default=/api/v1"`
 	AppMaxFiles        int    `env:"MAX_FILES, default=100"`
 	AppPollingInterval int    `env:"POLLING_INTERVAL, default=2000"`
-	AppFrontendHost    string `env:"FRONTEND_HOST, default=http://localhost:3000"`
 }
 
 func LoadCfg(ctx context.Context) (Config, error) {
@@ -90,7 +88,6 @@ func LoadCfg(ctx context.Context) (Config, error) {
 			BaseApiPrefix:   input.AppBaseApiPrefix,
 			MaxFiles:        input.AppMaxFiles,
 			PollingInterval: input.AppPollingInterval,
-			FrontendHost:    input.AppFrontendHost,
 		},
 	}
 

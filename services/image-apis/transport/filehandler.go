@@ -3,7 +3,6 @@ package transport
 import (
 	"context"
 	"errors"
-	"fmt"
 	"mime/multipart"
 
 	"github.com/gofiber/fiber/v2"
@@ -19,12 +18,11 @@ type FileProcessor interface {
 }
 
 type ProcessingHandler struct {
-	frontendHost string
-	fp           FileProcessor
+	fp FileProcessor
 }
 
-func NewProcessHandler(fp FileProcessor, feHost string) *ProcessingHandler {
-	return &ProcessingHandler{fp: fp, frontendHost: feHost}
+func NewProcessHandler(fp FileProcessor) *ProcessingHandler {
+	return &ProcessingHandler{fp: fp}
 }
 
 func (h *ProcessingHandler) Upload(c *fiber.Ctx) error {
@@ -61,9 +59,7 @@ func (h *ProcessingHandler) Process(c *fiber.Ctx) error {
 		return mapErr(c, err)
 	}
 
-	// redirect user to download
-	redirectPath := fmt.Sprintf("%s/downloads/%s", h.frontendHost, taskId)
-	return c.Redirect(redirectPath)
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{})
 }
 
 func (h *ProcessingHandler) Download(c *fiber.Ctx) error {

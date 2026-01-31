@@ -17,4 +17,3 @@ data:
   BASE_API_PREFIX: "/api/v1"
   MAX_FILES: "100"
   POLLING_INTERVAL: "2000"
-  FRONTEND_HOST: "http://localhost:3000"
