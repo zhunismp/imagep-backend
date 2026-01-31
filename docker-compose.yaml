@@ -20,6 +20,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
 
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
 
     volumes:
