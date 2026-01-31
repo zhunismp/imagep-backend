@@ -2,8 +2,6 @@ package cache
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -16,7 +14,7 @@ type redisCache struct {
 	redisClient *redis.Client
 }
 
-func NewRedisCache(cfg config.CacheCfg) (TaskStateCache, error) {
+func NewRedisCache(cfg config.CacheCfg) (FileCache, error) {
 	redis := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddress,
 		Password: cfg.RedisPassword,
@@ -32,120 +30,89 @@ func NewRedisCache(cfg config.CacheCfg) (TaskStateCache, error) {
 	return &redisCache{redisClient: redis}, nil
 }
 
-func (r *redisCache) GetTaskState(ctx context.Context, taskId string) (TaskState, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+func (r *redisCache) GetFileById(ctx context.Context, taskId, fileId string) (File, error) {
+	k := fileKey(taskId, fileId)
 
-	cacheKey := generateCacheKey(taskId)
-	res, err := r.redisClient.JSONGet(ctx, cacheKey, "$").Result()
-	if errors.Is(err, redis.Nil) {
-		return TaskState{}, apperrors.New(apperrors.ErrCodeNotFound, "task id not found", err)
-	} else if err != nil {
-		return TaskState{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	m, err := r.redisClient.HGetAll(ctx, k).Result()
+	if err != nil {
+		return File{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+	if len(m) == 0 {
+		return File{}, apperrors.New(apperrors.ErrCodeNotFound, "file not found", nil)
 	}
 
-	results := make([]TaskState, 1)
-	if err := json.Unmarshal([]byte(res), &results); err != nil {
-		return TaskState{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if len(results) == 0 {
-		return TaskState{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-
-	return results[0], nil
+	return File{
+		Status:       FileStatus(m["status"]),
+		FileID:       pick(m["file_id"], fileId),
+		OriginalName: m["original_name"],
+		ServerName:   m["server_name"],
+		SignedURL:    m["signed_url"],
+	}, nil
 }
 
-func (r *redisCache) SaveTaskState(ctx context.Context, taskId string, taskState TaskState) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
+func (r *redisCache) PostProcessFailed(ctx context.Context, taskId, fileId string) error {
+	fk := fileKey(taskId, fileId)
+	tk := taskKey(taskId)
 
-	cacheKey := generateCacheKey(taskId)
-	if err := r.redisClient.JSONSet(ctx, cacheKey, "$", taskState).Err(); err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-
-	return nil
-}
-
-func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status TaskStatus) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-
-	cacheKey := generateCacheKey(taskId)
-
-	if err := r.redisClient.JSONSet(ctx, cacheKey, "$.status", status).Err(); err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "failed to update status", err)
-	}
-
-	return nil
-}
-
-func (r *redisCache) PostUpdateProcessCompleted(ctx context.Context, taskId string, filePath string) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
-
-	cacheKey := generateCacheKey(taskId)
-
-	taskState, err := r.GetTaskState(ctx, taskId)
+	exists, err := r.redisClient.Exists(ctx, fk).Result()
 	if err != nil {
 		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 	}
-
-	pipe := r.redisClient.Pipeline()
-	pipe.Do(ctx, "JSON.ARRAPPEND", cacheKey, "$.processed", toJsonString(filePath))
-	pipe.Do(ctx, "JSON.NUMINCRBY", cacheKey, "$.completed", 1)
-
-	if taskState.Completed+1 == taskState.Total {
-		if len(taskState.Failed) == 0 {
-			pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Completed)))
-		} else {
-			pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Failed)))
-		}
+	if exists == 0 {
+		return apperrors.New(apperrors.ErrCodeNotFound, "file not found", nil)
 	}
+
+	pipe := r.redisClient.TxPipeline()
+	pipe.HSet(ctx, fk, "status", string(FileFailed))
+	pipe.HIncrBy(ctx, tk, "failed", 1)
 
 	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "failed to update completed file", err)
-	}
-
-	return nil
+	
+	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 }
 
-func (r *redisCache) PostUpdateProcessFailed(ctx context.Context, taskId string, filePath string) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-	defer cancel()
+func (r *redisCache) PostProcessCompleted(ctx context.Context, taskId, fileId, signedURL string) error {
+	fk := fileKey(taskId, fileId)
+	tk := taskKey(taskId)
 
-	cacheKey := generateCacheKey(taskId)
-
-	taskState, err := r.GetTaskState(ctx, taskId)
+	exists, err := r.redisClient.Exists(ctx, fk).Result()
 	if err != nil {
 		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 	}
-
-	pipe := r.redisClient.Pipeline()
-	pipe.Do(ctx, "JSON.ARRAPPEND", cacheKey, "$.failed", filePath)
-	pipe.Do(ctx, "JSON.NUMINCRBY", cacheKey, "$.completed", 1)
-
-	if taskState.Completed+1 == taskState.Total {
-		pipe.Do(ctx, "JSON.SET", cacheKey, "$.status", toJsonString(string(Failed)))
+	if exists == 0 {
+		return apperrors.New(apperrors.ErrCodeNotFound, "file not found", nil)
 	}
+
+	pipe := r.redisClient.TxPipeline()
+
+	pipe.HSet(ctx, fk,
+		"status", string(FileCompleted),
+		"signed_url", signedURL,
+	)
+	pipe.HIncrBy(ctx, tk, "completed", 1)
 
 	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "failed to update completed file", err)
-	}
 
-	return nil
+	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 }
 
 func (r *redisCache) Shutdown(ctx context.Context) error {
 	return r.redisClient.Close()
 }
 
-func generateCacheKey(taskId string) string {
-	return fmt.Sprintf("tasks:%s", taskId)
+/* ----------------------- Helpers ----------------------- */
+
+func fileKey(taskId, fileId string) string {
+	return fmt.Sprintf("task:%s:file:%s", taskId, fileId)
 }
 
-func toJsonString(s string) string {
-	return fmt.Sprintf(`"%s"`, s)
+func taskKey(taskId string) string {
+	return fmt.Sprintf("task:%s", taskId)
+}
+
+func pick(v, fallback string) string {
+	if v != "" {
+		return v
+	}
+	return fallback
 }

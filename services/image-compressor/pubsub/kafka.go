@@ -12,7 +12,7 @@ import (
 
 type ProcessImageMessage struct {
 	TaskId    string
-	ImageId   int
+	ImageId   string
 	ImagePath string
 }
 

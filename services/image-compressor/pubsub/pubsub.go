@@ -14,7 +14,7 @@ import (
 )
 
 type imageCompressorSvc interface {
-	Compress(ctx context.Context, taskId, filePath string) error
+	CompressAndUploadBlob(ctx context.Context, taskId, filePath, fileId string) error
 }
 
 type ConsumerWorker struct {
@@ -233,7 +233,7 @@ func (c *ConsumerWorker) processMessage(msg *kafka.Message) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	if err := c.svc.Compress(ctx, parsedMsg.TaskId, parsedMsg.ImagePath); err != nil {
+	if err := c.svc.CompressAndUploadBlob(ctx, parsedMsg.TaskId, parsedMsg.ImagePath, parsedMsg.ImageId); err != nil {
 		return err
 	}
 

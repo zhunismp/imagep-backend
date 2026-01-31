@@ -11,42 +11,43 @@ import (
 )
 
 type CompressorService struct {
-	TaskStateCache cache.TaskStateCache
-	blobStorage    blob.BlobStorage
+	fileCache   cache.FileCache
+	blobStorage blob.BlobStorage
 }
 
-func NewCompressorService(cache cache.TaskStateCache, blob blob.BlobStorage) *CompressorService {
-	return &CompressorService{TaskStateCache: cache, blobStorage: blob}
+func NewCompressorService(cache cache.FileCache, blob blob.BlobStorage) *CompressorService {
+	return &CompressorService{fileCache: cache, blobStorage: blob}
 }
 
-func (c *CompressorService) Compress(ctx context.Context, taskId, filePath string) error {
+func (c *CompressorService) CompressAndUploadBlob(ctx context.Context, taskId, filePath, fileId string) (err error) {
+	defer func() {
+		if err != nil {
+			c.fileCache.PostProcessFailed(ctx, taskId, fileId)
+		}
+	}()
+
 	img, format, err := c.blobStorage.DownloadBlob(ctx, taskId, filePath)
 	if err != nil {
-		c.TaskStateCache.PostUpdateProcessFailed(ctx, taskId, filePath)
 		return err
 	}
 
 	data, _, err := c.runCompression(ctx, img, format)
 	if err != nil {
-		c.TaskStateCache.PostUpdateProcessFailed(ctx, taskId, filePath)
 		return err
 	}
 
-	path := fmt.Sprintf("%s/compressed/%s", taskId, filePath)
-	reader := bytes.NewReader(data)
-
-	if err := c.blobStorage.UploadBlob(ctx, path, reader); err != nil {
-		c.TaskStateCache.PostUpdateProcessFailed(ctx, taskId, filePath)
+	path := fmt.Sprintf("%s/compressed/%s", taskId, fileId)
+	if err := c.blobStorage.UploadBlob(ctx, path, bytes.NewReader(data)); err != nil {
 		return err
 	}
 
 	signedFilePath, err := c.blobStorage.GetPresignedURL(path)
 	if err != nil {
-		c.TaskStateCache.PostUpdateProcessFailed(ctx, taskId, filePath)
 		return err
 	}
 
-	return c.TaskStateCache.PostUpdateProcessCompleted(ctx, taskId, signedFilePath)
+	err = c.fileCache.PostProcessCompleted(ctx, taskId, fileId, signedFilePath)
+	return err
 }
 
 func (c *CompressorService) runCompression(ctx context.Context, img image.Image, format string) ([]byte, string, error) {

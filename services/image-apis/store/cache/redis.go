@@ -72,13 +72,8 @@ func (r *redisCache) UpdateTaskStatus(ctx context.Context, taskId string, status
 		return apperrors.New(apperrors.ErrCodeNotFound, "task not found", nil)
 	}
 
-	now := strconv.FormatInt(time.Now().Unix(), 10)
-
 	pipe := r.redisClient.Pipeline()
-	pipe.HSet(ctx, tk,
-		"status", string(status),
-		"updated_at", now,
-	)
+	pipe.HSet(ctx, tk, "status", string(status))
 	pipe.Expire(ctx, tk, r.ttl)
 
 	_, err = pipe.Exec(ctx)
