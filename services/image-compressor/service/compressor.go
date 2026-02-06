@@ -46,8 +46,7 @@ func (c *CompressorService) CompressAndUploadBlob(ctx context.Context, taskId, f
 		return err
 	}
 
-	err = c.fileCache.PostProcessCompleted(ctx, taskId, fileId, signedFilePath)
-	return err
+	return c.fileCache.PostProcessCompleted(ctx, taskId, fileId, signedFilePath)
 }
 
 func (c *CompressorService) runCompression(ctx context.Context, img image.Image, format string) ([]byte, string, error) {

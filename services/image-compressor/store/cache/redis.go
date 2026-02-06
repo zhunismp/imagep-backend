@@ -66,9 +66,11 @@ func (r *redisCache) PostProcessFailed(ctx context.Context, taskId, fileId strin
 	pipe.HSet(ctx, fk, "status", string(FileFailed))
 	pipe.HIncrBy(ctx, tk, "failed", 1)
 
-	_, err = pipe.Exec(ctx)
-	
-	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
+
+	return nil
 }
 
 func (r *redisCache) PostProcessCompleted(ctx context.Context, taskId, fileId, signedURL string) error {
@@ -91,9 +93,11 @@ func (r *redisCache) PostProcessCompleted(ctx context.Context, taskId, fileId, s
 	)
 	pipe.HIncrBy(ctx, tk, "completed", 1)
 
-	_, err = pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	}
 
-	return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
+	return nil
 }
 
 func (r *redisCache) Shutdown(ctx context.Context) error {

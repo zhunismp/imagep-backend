@@ -13,6 +13,7 @@ import (
 	"github.com/zhunismp/imagep-backend/services/image-apis/store/blob"
 	"github.com/zhunismp/imagep-backend/services/image-apis/store/cache"
 	"golang.org/x/sync/errgroup"
+	apperrors "github.com/zhunismp/imagep-backend/internal/errors"
 )
 
 type fileProcessorService struct {
@@ -54,6 +55,9 @@ type UploadResponse struct {
 }
 
 func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files []*multipart.FileHeader) (UploadResponse, error) {
+	if len(files) == 0 {
+		return UploadResponse{}, apperrors.New(apperrors.ErrCodeValidation, "files is empty", nil)
+	}
 
 	g, wctx := errgroup.WithContext(ctx)
 	g.SetLimit(8)
