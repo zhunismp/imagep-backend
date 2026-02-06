@@ -26,10 +26,10 @@ spec:
       secretName: imagep-tls
 
   rules:
-    - host: imagep.zhunismp.dev
+    - host: imagep-api.zhunismp.dev
       http:
         paths:
-          - path: /api
+          - path: /
             pathType: Prefix
             backend:
               service:
