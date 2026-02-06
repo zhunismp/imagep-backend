@@ -9,4 +9,4 @@ spec:
     name: imagep-issuer
     kind: ClusterIssuer
   dnsNames:
-  - imagep.zhunismp.dev
+  - imagep-api.zhunismp.dev
