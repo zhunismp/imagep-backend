@@ -22,7 +22,7 @@ spec:
   ingressClassName: kong
   tls:
     - hosts:
-      - imagep.zhunismp.dev
+      - api.zhunismp.dev
       secretName: imagep-tls
 
   rules:

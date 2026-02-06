@@ -42,13 +42,13 @@ func NewFileProcessorService(
 
 type uploadFileResult struct {
 	Id             string `json:"fileId"`
-	FileName       string `json:"fileName"`
-	ServerFileName string `json:"serverFileName"`
+	FileName       string `json:"filename"`
+	ServerFileName string `json:"serverFilename"`
 	Err            error  `json:"errMsg"`
 }
 
 type UploadResponse struct {
-	TaskId   string             `json:"task_id"`
+	TaskId   string             `json:"taskId"`
 	Uploaded []uploadFileResult `json:"uploaded"`
 	Failed   []uploadFileResult `json:"failed"`
 }
@@ -152,8 +152,9 @@ type Progress struct {
 }
 
 type FileResult struct {
-	ServerFileName string `json:"serverFileName"`
-	FileName       string `json:"fileName"`
+	FileId         string `json:"fileId"`
+	ServerFileName string `json:"serverFilename"`
+	FileName       string `json:"filename"`
 	SignedURL      string `json:"signedUrl,omitempty"`
 }
 
@@ -188,6 +189,7 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 
 	for _, file := range files {
 		fileResult := FileResult{
+			FileId:         file.FileID,
 			ServerFileName: file.ServerName,
 			FileName:       file.OriginalName,
 			SignedURL:      file.SignedURL,
