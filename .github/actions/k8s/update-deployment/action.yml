@@ -18,7 +18,7 @@ runs:
       shell: bash
       run: |
         yq -i '
-          .spec.template.spec.containers[0].image = "${{ inputs.image }}"
+          (select(.kind == "Deployment") | .spec.template.spec.containers[0].image) = "${{ inputs.image }}"
         ' infra/k8s/apps/${{ inputs.service }}/deployment.yaml
 
     - name: Commit and push manifest
