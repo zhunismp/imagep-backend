@@ -71,7 +71,3 @@ spec:
       protocol: TCP
       port: 80
       targetPort: 8080
-  template:
-    spec:
-      containers:
-        - image: zhunismp/image-compressor:f2e1725ff8642cf1cea56d1a29037563c6e5b09f
