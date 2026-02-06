@@ -9,11 +9,11 @@ import (
 
 	"github.com/panjf2000/ants/v2"
 	"github.com/thanhpk/randstr"
+	apperrors "github.com/zhunismp/imagep-backend/internal/errors"
 	"github.com/zhunismp/imagep-backend/services/image-apis/pubsub"
 	"github.com/zhunismp/imagep-backend/services/image-apis/store/blob"
 	"github.com/zhunismp/imagep-backend/services/image-apis/store/cache"
 	"golang.org/x/sync/errgroup"
-	apperrors "github.com/zhunismp/imagep-backend/internal/errors"
 )
 
 type fileProcessorService struct {
@@ -199,9 +199,11 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 			SignedURL:      file.SignedURL,
 		}
 
-		if file.Status == cache.FileCompleted {
+		// ignore upload file for displaying
+		switch file.Status {
+		case cache.FileCompleted:
 			completed = append(completed, fileResult)
-		} else {
+		case cache.FileFailed:
 			failed = append(failed, fileResult)
 		}
 	}

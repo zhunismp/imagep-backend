@@ -21,7 +21,7 @@ func NewCompressorService(cache cache.FileCache, blob blob.BlobStorage) *Compres
 
 func (c *CompressorService) CompressAndUploadBlob(ctx context.Context, taskId, filePath, fileId string) (err error) {
 	defer func() {
-		if err != nil {
+		if err != nil || ctx.Err() != nil {
 			c.fileCache.PostProcessFailed(ctx, taskId, fileId)
 		}
 	}()
