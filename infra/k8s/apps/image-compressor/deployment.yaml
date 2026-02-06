@@ -23,7 +23,7 @@ spec:
       serviceAccountName: sa
       containers:
         - name: image-compressor
-          image: zhunismp/image-compressor:fe9bf4f0aab3b0474b6c8f5023b9aac168480f8f
+          image: zhunismp/image-compressor:f2e1725ff8642cf1cea56d1a29037563c6e5b09f
           ports:
             - containerPort: 8080
               name: http
@@ -71,3 +71,7 @@ spec:
       protocol: TCP
       port: 80
       targetPort: 8080
+  template:
+    spec:
+      containers:
+        - image: zhunismp/image-compressor:f2e1725ff8642cf1cea56d1a29037563c6e5b09f
