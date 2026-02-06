@@ -72,7 +72,3 @@ spec:
       protocol: TCP
       port: 80
       targetPort: 8080
-  template:
-    spec:
-      containers:
-        - image: zhunismp/image-apis:c682be5a561fda5a7641d6eadf41f97df8d308cf
