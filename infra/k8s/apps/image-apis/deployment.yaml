@@ -34,11 +34,11 @@ spec:
                 name: image-apis-secret
           resources:
             requests:
-              cpu: 100m
-              memory: 100Mi
+              cpu: 200m
+              memory: 786Mi
             limits:
-              cpu: 100m
-              memory: 100Mi
+              cpu: 300m
+              memory: 1536Mi
           livenessProbe:
             tcpSocket:
               port: 8080

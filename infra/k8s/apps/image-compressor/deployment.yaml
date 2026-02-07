@@ -9,7 +9,7 @@ spec:
   selector:
     matchLabels:
       app: image-compressor-pod
-  replicas: 3
+  replicas: 4
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -34,11 +34,11 @@ spec:
                 name: image-compressor-secret
           resources:
             requests:
-              cpu: 100m
-              memory: 100Mi
+              cpu: 300m
+              memory: 768Mi
             limits:
-              cpu: 100m
-              memory: 100Mi
+              cpu: 1
+              memory: 1536Mi
           livenessProbe:
             exec:
               command: ["sh", "-c", "exit 0"]

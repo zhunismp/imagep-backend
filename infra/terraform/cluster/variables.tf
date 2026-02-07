@@ -9,5 +9,5 @@ variable "node_count" {
 }
 
 variable "machine_type" {
-  default = "e2-standard-2"
+  default = "e2-highmem-2"
 }
