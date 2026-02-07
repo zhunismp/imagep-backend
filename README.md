@@ -1,4 +1,4 @@
-# Imagep backend
+# ImageP backend
 *Asynchronous backend microservices; design for scalability and reliability using polling base*
 ## Background
 **[ImageP](https://imagep.zhunismp.dev)** is a website for compressing image inspired by [iloveimage](https://www.iloveimg.com/compress-image). **The main purpose of this project is to implement asynchronous system that handle heavy task like image compressing without crashing when facing the load.**
