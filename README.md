@@ -14,10 +14,6 @@ flowchart TD
     Worker[image-compressor workers]
     Client[Client]
 
-    %% vertical backbone
-    Redis --> Kafka
-    Kafka --> Blob
-
     %% left side
     Client --> API
     API -->|enqueue jobs| Kafka
