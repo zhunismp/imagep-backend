@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -32,38 +31,6 @@ func NewRedisCache(cfg config.CacheCfg) (TaskCache, error) {
 	return &redisCache{redisClient: redis, ttl: time.Hour}, nil
 }
 
-func (r *redisCache) CreateTask(ctx context.Context, taskId string, t Task) error {
-	k := taskKey(taskId)
-
-	created, err := r.redisClient.HSetNX(ctx, k, "created_at", strconv.FormatInt(time.Now().Unix(), 10)).Result()
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if !created {
-		// already exists
-		return nil
-	}
-
-	pipe := r.redisClient.Pipeline()
-	pipe.HSet(ctx, k,
-		"total", strconv.Itoa(t.Total),
-		"uploaded", strconv.Itoa(t.Uploaded),
-		"completed", strconv.Itoa(t.Completed),
-		"failed", strconv.Itoa(t.Failed),
-		"retry_attempt", strconv.Itoa(t.RetryAttempt),
-	)
-
-	pipe.Expire(ctx, k, r.ttl)
-	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-
-	return nil
-}
-
 func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []File) error {
 	if len(files) == 0 {
 		return nil
@@ -83,22 +50,6 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 		fileIDs = append(fileIDs, f.FileID)
 	}
 
-	var addTotal, addUploaded, addCompleted, addFailed int64
-	addTotal = int64(len(files))
-
-	for _, f := range files {
-		switch f.Status {
-		case FileUploaded:
-			addUploaded++
-		case FileCompleted:
-			addCompleted++
-		case FileFailed:
-			addFailed++
-		default:
-			addFailed++
-		}
-	}
-
 	pipe := r.redisClient.Pipeline()
 
 	pipe.RPush(ctx, taskFilesKey(taskId), fileIDs...)
@@ -115,15 +66,7 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 		pipe.Expire(ctx, fk, r.ttl)
 	}
 
-	// Update task counters
-	tk := taskKey(taskId)
-	pipe.HIncrBy(ctx, tk, "total", addTotal)
-	pipe.HIncrBy(ctx, tk, "uploaded", addUploaded)
-	pipe.HIncrBy(ctx, tk, "completed", addCompleted)
-	pipe.HIncrBy(ctx, tk, "failed", addFailed)
-
 	// Keep TTL alive while still active
-	pipe.Expire(ctx, tk, r.ttl)
 	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
 
 	_, err = pipe.Exec(ctx)
@@ -132,34 +75,6 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 	}
 
 	return nil
-}
-
-func (r *redisCache) GetTaskById(ctx context.Context, taskId string) (Task, error) {
-	k := taskKey(taskId)
-
-	m, err := r.redisClient.HGetAll(ctx, k).Result()
-	if err != nil {
-		return Task{}, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if len(m) == 0 {
-		return Task{}, apperrors.New(apperrors.ErrCodeNotFound, "task not found", nil)
-	}
-
-	toInt := func(s string) int {
-		if s == "" {
-			return 0
-		}
-		n, _ := strconv.Atoi(s)
-		return n
-	}
-
-	return Task{
-		Total:        toInt(m["total"]),
-		Uploaded:     toInt(m["uploaded"]),
-		Completed:    toInt(m["completed"]),
-		Failed:       toInt(m["failed"]),
-		RetryAttempt: toInt(m["retry_attempt"]),
-	}, nil
 }
 
 func (r *redisCache) GetFilesByTaskId(ctx context.Context, taskId string) ([]File, error) {

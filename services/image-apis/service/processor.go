@@ -103,11 +103,6 @@ func (fp *fileProcessorService) Upload(ctx context.Context, taskId string, files
 		}
 	}
 
-	// This method is idempotance, if task created it won't create new one.
-	if err := fp.taskCache.CreateTask(ctx, taskId, cache.Task{}); err != nil {
-		return UploadResponse{}, err
-	}
-
 	cf := make([]cache.File, 0, len(uploaded))
 	for _, file := range uploaded {
 		f := cache.File{
@@ -172,17 +167,6 @@ type ProcessingResponse struct {
 }
 
 func (f *fileProcessorService) Download(ctx context.Context, taskId string) (ProcessingResponse, error) {
-	task, err := f.taskCache.GetTaskById(ctx, taskId)
-	if err != nil {
-		return ProcessingResponse{}, err
-	}
-
-	progress := Progress{
-		Total:     task.Total,
-		Completed: task.Completed,
-		Failed:    task.Failed,
-	}
-
 	files, err := f.taskCache.GetFilesByTaskId(ctx, taskId)
 	if err != nil {
 		return ProcessingResponse{}, err
@@ -208,7 +192,13 @@ func (f *fileProcessorService) Download(ctx context.Context, taskId string) (Pro
 		}
 	}
 
-	isCompleted := task.Completed+task.Failed >= task.Total
+	progress := Progress{
+		Total:     len(files),
+		Completed: len(completed),
+		Failed:    len(failed),
+	}
+
+	isCompleted := progress.Completed+progress.Failed >= progress.Total
 
 	response := ProcessingResponse{
 		TaskId:      taskId,
