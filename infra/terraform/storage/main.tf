@@ -21,4 +21,11 @@ resource "google_storage_bucket" "imagep-bucket" {
             type = "Delete"
         }
     }
+
+    cors {
+        origin          = ["https://imagep.zhunismp.dev"]
+        method          = ["GET", "HEAD"]
+        response_header = ["Content-Type"]
+        max_age_seconds = 3600
+    }
 }
