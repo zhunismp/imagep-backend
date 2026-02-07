@@ -28,6 +28,8 @@ func NewGoogleCloudStorage(bucketName string) (BlobStorage, error) {
 }
 
 func (b *googleCloudStorage) UploadBlob(ctx context.Context, path string, content io.Reader) error {
+	start := time.Now()
+
 	// Ensure uploading file completed when context was cancelled.
 	uploadCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 	defer cancel()
@@ -43,6 +45,9 @@ func (b *googleCloudStorage) UploadBlob(ctx context.Context, path string, conten
 		slog.Error("failed to upload", "error", err)
 		return apperrors.New(apperrors.ErrCodeInternal, "failed to finalize GCS upload", err)
 	}
+
+	// TODO: using otel
+	slog.Info("Uploading time to blob", "path", path, "duration", time.Since(start).Seconds())
 
 	return nil
 }

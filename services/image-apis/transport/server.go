@@ -22,7 +22,8 @@ type HttpServer struct {
 func NewHttpServer(cfg config.Config) *HttpServer {
 
 	app := fiber.New(fiber.Config{
-		AppName: cfg.Name,
+		AppName:   cfg.Name,
+		BodyLimit: 50 * 1024 * 1024,
 	})
 
 	// middleware
