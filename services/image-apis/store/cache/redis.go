@@ -36,15 +36,6 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 		return nil
 	}
 
-	// Ensure task exists
-	exists, err := r.redisClient.Exists(ctx, taskKey(taskId)).Result()
-	if err != nil {
-		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if exists == 0 {
-		return apperrors.New(apperrors.ErrCodeNotFound, "task not found", nil)
-	}
-
 	fileIDs := make([]interface{}, 0, len(files))
 	for _, f := range files {
 		fileIDs = append(fileIDs, f.FileID)
@@ -69,8 +60,7 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 	// Keep TTL alive while still active
 	pipe.Expire(ctx, taskFilesKey(taskId), r.ttl)
 
-	_, err = pipe.Exec(ctx)
-	if err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
 	}
 
