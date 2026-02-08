@@ -23,7 +23,7 @@ spec:
       serviceAccountName: sa
       containers:
         - name: image-apis
-          image: zhunismp/image-apis:04e5f4d9c6891742e25d16d3b263d8a429dae2ee
+          image: zhunismp/image-apis:fd04ded404e4844a6481c7d6ad1043e80c55ee07
           ports:
             - containerPort: 8080
               name: http
