@@ -68,14 +68,6 @@ func (r *redisCache) BatchSaveFiles(ctx context.Context, taskId string, files []
 }
 
 func (r *redisCache) GetFilesByTaskId(ctx context.Context, taskId string) ([]File, error) {
-	exists, err := r.redisClient.Exists(ctx, taskKey(taskId)).Result()
-	if err != nil {
-		return nil, apperrors.New(apperrors.ErrCodeInternal, "something went wrong", err)
-	}
-	if exists == 0 {
-		return nil, apperrors.New(apperrors.ErrCodeNotFound, "task not found", nil)
-	}
-
 	ids, err := r.redisClient.LRange(ctx, taskFilesKey(taskId), 0, -1).Result()
 	if err != nil {
 		return nil, err
