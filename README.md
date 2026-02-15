@@ -1,5 +1,6 @@
 # ImageP backend
 *Asynchronous backend microservices; design for scalability and reliability using polling base*
+<video width="630" height="300" alt="imagep-demo" src="https://github.com/user-attachments/assets/41cd6718-e67f-4832-bb21-4bf45c4dc121.mp4"></video>
 ## Background
 **[ImageP](https://imagep.zhunismp.dev)** is a website for compressing image inspired by [iloveimage](https://www.iloveimg.com/compress-image). **The main purpose of this project is to implement asynchronous system that handle heavy task like image compressing without crashing when facing the load.**
 
@@ -30,6 +31,11 @@ flowchart TD
 - **Terraform** - manage cloud resource infrastructure
 - **ArgoCD** - manage Kubernetes cluster infrastructure
 - **GitOps** - CICD workflow from pull request to production
+
+## Note about repo structure
+The repo structure was inspired by [banterbus](https://gitlab.com/hmajid2301/banterbus). I found out that this flat structure repo working pretty well for smaller project; in fact, I've been in the situation that adding new thing conclude into introducing 3 new structs through abstraction layers.
+
+Using flat structure isn't always leading to tight-couple. We can still using interface to decouple things around as in hexagonal architecture or clean architecture. See example in [/services/image-apis/store/blob](https://github.com/zhunismp/imagep-backend/tree/master/services/image-apis/store/blob), interface appear to decouple service from external dependencies.
 
 ## Pre-requisites
 - Go 1.21+
