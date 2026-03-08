@@ -23,7 +23,7 @@ spec:
       serviceAccountName: sa
       containers:
         - name: image-compressor
-          image: zhunismp/image-compressor:0716d3fd681104eec9aaffaca2e95be53de4ae4b
+          image: zhunismp/image-compressor:92df58251d1b3d852cf21db3a3d71a7e37285d8a
           ports:
             - containerPort: 8080
               name: http
