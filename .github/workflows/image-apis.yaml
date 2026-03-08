@@ -9,13 +9,47 @@ on:
 
 permissions:
   contents: write
+  checks: write
 
-concurrency: 
+concurrency:
   group: image-apis-k8s-deploy
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+      - name: Run tests
+        run: gotestsum --format testdox --junitfile test-results.xml -- ./services/image-apis/... ./internal/... -coverprofile=coverage.out
+      - name: Generate coverage HTML
+        if: always()
+        run: go tool cover -html=coverage.out -o coverage.html
+      - name: Test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: image-apis tests
+          path: test-results.xml
+          reporter: java-junit
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            coverage.out
+            coverage.html
+          retention-days: 7
+
   build-and-publish-docker:
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.builder.outputs.image }}
@@ -29,14 +63,14 @@ jobs:
           docker-token: ${{ secrets.DOCKER_TOKEN }}
           service: image-apis
           context: .
-  
+
   update-deployment-image:
     needs: build-and-publish-docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch_depth: 0      
+          fetch_depth: 0
       - name: Update deployment image version
         uses: ./.github/actions/k8s/update-deployment
         with:
